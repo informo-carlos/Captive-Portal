@@ -1,0 +1,17 @@
+{
+  "name": "@captive-portal/admin-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Admin backend API — Captive Portal",
+  "scripts": {
+    "migrate": "node-pg-migrate up --migrations-dir ../../infra/postgres/migrations --migration-file-language sql",
+    "migrate:down": "node-pg-migrate down --migrations-dir ../../infra/postgres/migrations --migration-file-language sql",
+    "seed": "echo 'Seed roda automaticamente com as migrations (007_seed_initial_data.sql)'"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "node-pg-migrate": "^7.9.0"
+  }
+}
