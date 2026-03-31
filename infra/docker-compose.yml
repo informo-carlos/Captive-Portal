@@ -55,6 +55,7 @@ services:
     depends_on:
       - admin-backend
       - admin-frontend
+      - portal-frontend
     networks:
       - internal
       - external
@@ -91,14 +92,25 @@ services:
 
   admin-frontend:
     build:
-      context: ../apps/admin
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/admin/Dockerfile
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${ADMIN_API_URL}
       NODE_ENV: production
     depends_on:
       - admin-backend
+    networks:
+      - internal
+
+  portal-frontend:
+    build:
+      context: ..
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ""
+      NODE_ENV: production
     networks:
       - internal
 
