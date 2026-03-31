@@ -34,7 +34,16 @@ async function request<T>(
     },
   })
 
-  const body = await res.json()
+  let body: unknown
+  try {
+    body = await res.json()
+  } catch {
+    throw new ApiRequestError({
+      error: 'network_error',
+      message: 'Erro de comunicação com o servidor. Tente novamente.',
+      code: res.status,
+    })
+  }
 
   if (!res.ok) {
     throw new ApiRequestError(body as ApiError)

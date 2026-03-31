@@ -73,7 +73,17 @@ async function request<T>(
   }
 
   const res = await fetch(url, { ...options, headers })
-  const body = await res.json()
+
+  let body: unknown
+  try {
+    body = await res.json()
+  } catch {
+    throw new ApiRequestError({
+      error: 'network_error',
+      message: 'Erro de comunicação com o servidor. Tente novamente.',
+      code: res.status,
+    })
+  }
 
   if (!res.ok) {
     const apiError = body as ApiError
