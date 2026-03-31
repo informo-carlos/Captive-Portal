@@ -38,8 +38,20 @@ COMMENT ON COLUMN wifi_sessions.year_month      IS 'YYYYMM como inteiro (ex: 202
 
 -- =============================================
 -- Partitions: 2025-01 a 2027-12 (36 meses)
--- Para adicionar novos anos, criar partitions antes do início do ano.
--- Exemplo: CREATE TABLE wifi_sessions_202801 PARTITION OF wifi_sessions FOR VALUES FROM (202801) TO (202802);
+-- ATENÇÃO: Novas partições devem ser criadas ANTES do início de 2028.
+-- Sem partição disponível, INSERTs falharão com erro.
+-- Recomendação: usar pg_partman em produção ou agendar criação manual.
+--
+-- Para criar manualmente um ano inteiro:
+--   DO $$ BEGIN
+--     FOR m IN 1..12 LOOP
+--       EXECUTE format(
+--         'CREATE TABLE IF NOT EXISTS wifi_sessions_%s PARTITION OF wifi_sessions FOR VALUES FROM (%s) TO (%s)',
+--         2028 * 100 + m, 2028 * 100 + m,
+--         CASE WHEN m = 12 THEN 2029 * 100 + 1 ELSE 2028 * 100 + m + 1 END
+--       );
+--     END LOOP;
+--   END $$;
 -- =============================================
 
 -- 2025
