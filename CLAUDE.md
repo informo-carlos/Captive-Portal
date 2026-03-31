@@ -198,6 +198,87 @@ Isso garante que o outro dev (e o Claude) saibam exatamente o que está sendo co
 
 ---
 
+## Workflow de Git — OBRIGATÓRIO para todo agente
+
+Toda task deve seguir este fluxo. Sem exceção.
+
+### 1. Criar branch a partir de `develop`
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feat/task-b2    # nome: feat/task-{id}
+```
+
+### 2. Implementar e commitar
+
+```bash
+# Commits pequenos e descritivos
+git add <arquivos específicos>
+git commit -m "feat(task-b2): descrição curta do que foi feito"
+```
+
+Regras de commit:
+- Prefixo: `feat(task-XX)`, `fix(task-XX)` ou `chore(task-XX)`
+- Mensagem curta e em português
+- Nunca `git add .` ou `git add -A` (risco de subir .env ou arquivos sensíveis)
+- Nunca `--no-verify` ou `--force`
+
+### 3. Push e criar PR para `develop`
+
+```bash
+git push -u origin feat/task-b2
+
+# Criar PR via gh CLI:
+gh pr create --base develop \
+  --title "feat(task-B2): migrations do banco de dados" \
+  --body "$(cat <<'EOF'
+## Summary
+- Descrição das mudanças
+
+## Task
+B2 — Migrations do banco de dados
+
+## Checklist
+- [ ] Segui a spec em docs/
+- [ ] Sem credenciais no código
+- [ ] Campos sensíveis criptografados
+- [ ] Testado localmente
+EOF
+)"
+```
+
+### 4. Após aprovação, merge para `develop`
+
+```bash
+# Via GitHub (botão Merge) ou:
+git checkout develop
+git merge feat/task-b2
+git push origin develop
+git branch -d feat/task-b2          # limpa branch local
+git push origin --delete feat/task-b2  # limpa branch remota
+```
+
+### 5. Quando tudo estiver pronto: `develop` → `main`
+
+Só após todas as tasks passarem em `develop`:
+```bash
+git checkout main
+git merge develop
+git push origin main
+```
+
+### Nomenclatura de branches
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Feature backend | `feat/task-b{N}` | `feat/task-b2` |
+| Feature frontend | `feat/task-f{N}` | `feat/task-f1` |
+| Bugfix | `fix/{descrição}` | `fix/serial-guard-header` |
+| Hotfix produção | `hotfix/{descrição}` | `hotfix/otp-timeout` |
+
+---
+
 ## Contexto de prazo
 
 Semana 1 — MVP completo com todas as tasks B1–B8 e F1–F7 do `docs/TASKS.md`.
