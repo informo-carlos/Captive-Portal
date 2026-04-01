@@ -20,6 +20,7 @@ async function buildApp() {
     logger: {
       level: config.nodeEnv === 'production' ? 'info' : 'debug',
     },
+    trustProxy: true,
   })
 
   // Decora o fastify com a config para os plugins acessarem
