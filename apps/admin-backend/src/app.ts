@@ -6,6 +6,7 @@ import authPlugin from './plugins/auth'
 import auditPlugin from './plugins/audit'
 import authRoutes from './routes/auth'
 import healthRoutes from './routes/health'
+import tenantRoutes from './routes/tenants'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -35,6 +36,7 @@ async function buildApp() {
   // Rotas
   await fastify.register(healthRoutes)
   await fastify.register(authRoutes)
+  await fastify.register(tenantRoutes)
 
   return fastify
 }
