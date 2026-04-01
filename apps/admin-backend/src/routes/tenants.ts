@@ -17,6 +17,16 @@ interface SonicwallConfig {
   guest_service_pass?: string
 }
 
+// Validação LHM: campos obrigatórios quando mode = 'lhm'
+function validateLhmConfig(config: { mode?: string; guest_service_user?: string; guest_service_pass?: string }): string | null {
+  if (config.mode === 'lhm') {
+    if (!config.guest_service_user || !config.guest_service_pass) {
+      return 'Campos guest_service_user e guest_service_pass são obrigatórios quando mode = "lhm".'
+    }
+  }
+  return null
+}
+
 // Remove campos sensíveis do sonicwall_config para a response
 function sanitizeConfig(encrypted: string, encryptionKey: string): Record<string, unknown> | null {
   try {
@@ -60,6 +70,9 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
   const encryptionKey = fastify.config.encryptionKey
 
   // ─── GET /admin/tenants ─────────────────────────────────
+  // Nota: GETs não gravam audit_log. Auditar leituras gera volume excessivo
+  // e baixo valor para o cenário atual. Reavaliar se dados de rede/config
+  // exigirem rastreamento de quem visualizou (tenant_listed / tenant_viewed).
   fastify.get('/admin/tenants', {
     preHandler: [fastify.authenticate],
     schema: {
@@ -186,15 +199,14 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       session_duration_minutes?: number
     }
 
-    // Validação LHM: campos obrigatórios quando mode = 'lhm'
-    if (body.sonicwall_config.mode === 'lhm') {
-      if (!body.sonicwall_config.guest_service_user || !body.sonicwall_config.guest_service_pass) {
-        return reply.code(422).send({
-          error: 'missing_lhm_fields',
-          message: 'Campos guest_service_user e guest_service_pass são obrigatórios quando mode = "lhm".',
-          code: 422,
-        })
-      }
+    // Validação LHM
+    const lhmError = validateLhmConfig(body.sonicwall_config)
+    if (lhmError) {
+      return reply.code(422).send({
+        error: 'missing_lhm_fields',
+        message: lhmError,
+        code: 422,
+      })
     }
 
     const client = await fastify.db.connect()
@@ -256,12 +268,14 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         serialRows.push(serialResult.rows[0])
       }
 
-      // 6. Audit log
-      await client.query(
-        `INSERT INTO audit_logs (admin_user_id, action, payload, ip_address)
-         VALUES ($1, 'tenant_created', $2, $3)`,
-        [request.admin.id, JSON.stringify({ tenant_id: tenant.id, name: body.name, port: body.port }), request.ip],
-      )
+      // 6. Audit log (usa plugin com client transacional)
+      await fastify.logAudit({
+        adminUserId: request.admin.id,
+        action: 'tenant_created',
+        payload: { tenant_id: tenant.id, name: body.name, port: body.port },
+        ipAddress: request.ip,
+        client,
+      })
 
       await client.query('COMMIT')
 
@@ -421,6 +435,18 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       if (body['sonicwall_config'] !== undefined) {
         const currentConfig = decryptConfigFromDb(existing.rows[0], encryptionKey) || {}
         const newConfig = { ...currentConfig, ...(body['sonicwall_config'] as Record<string, unknown>) }
+
+        // Validação LHM após merge (ponto crítico: rest→lhm sem guest_service)
+        const lhmError = validateLhmConfig(newConfig as { mode?: string; guest_service_user?: string; guest_service_pass?: string })
+        if (lhmError) {
+          await client.query('ROLLBACK')
+          return reply.code(422).send({
+            error: 'missing_lhm_fields',
+            message: lhmError,
+            code: 422,
+          })
+        }
+
         const encryptedConfig = encrypt(JSON.stringify(newConfig), encryptionKey)
         updates.push(`sonicwall_config = $${paramIdx++}`)
         values.push(JSON.stringify({ encrypted: encryptedConfig }))
@@ -433,17 +459,6 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         updates.push(`zenvia_token = $${paramIdx++}`)
         values.push(encryptedZenvia)
         changes['zenvia_token'] = 'updated'
-      }
-
-      // updated_at
-      updates.push(`updated_at = CURRENT_TIMESTAMP`)
-
-      if (updates.length > 1) {
-        values.push(id)
-        await client.query(
-          `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
-          values,
-        )
       }
 
       // serials — se enviados, substituir
@@ -477,12 +492,24 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         changes['serials'] = serials.map((s) => s.serial)
       }
 
-      // Audit log com diff
-      await client.query(
-        `INSERT INTO audit_logs (admin_user_id, action, payload, ip_address)
-         VALUES ($1, 'tenant_updated', $2, $3)`,
-        [request.admin.id, JSON.stringify({ tenant_id: id, changes }), request.ip],
-      )
+      // updated_at — atualiza sempre que houve qualquer mudança (incluindo só serials)
+      if (updates.length > 0 || body['serials'] !== undefined) {
+        updates.push(`updated_at = CURRENT_TIMESTAMP`)
+        values.push(id)
+        await client.query(
+          `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
+          values,
+        )
+      }
+
+      // Audit log com diff (usa plugin com client transacional)
+      await fastify.logAudit({
+        adminUserId: request.admin.id,
+        action: 'tenant_updated',
+        payload: { tenant_id: id, changes },
+        ipAddress: request.ip,
+        client,
+      })
 
       await client.query('COMMIT')
 
