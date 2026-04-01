@@ -6,12 +6,25 @@
   "scripts": {
     "migrate": "node-pg-migrate up --migrations-dir ../../infra/postgres/migrations --migration-file-language sql",
     "migrate:down": "node-pg-migrate down --migrations-dir ../../infra/postgres/migrations --migration-file-language sql",
-    "seed": "echo 'Seed roda automaticamente com as migrations (007_seed_initial_data.sql)'"
+    "seed": "echo 'Seed roda automaticamente com as migrations (007_seed_initial_data.sql)'",
+    "dev": "tsx watch src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
   },
   "dependencies": {
-    "pg": "^8.13.0"
+    "@fastify/cors": "^11.2.0",
+    "@fastify/jwt": "^10.0.0",
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.8.4",
+    "fastify-plugin": "^5.1.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
-    "node-pg-migrate": "^7.9.0"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "node-pg-migrate": "^7.9.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
   }
 }
