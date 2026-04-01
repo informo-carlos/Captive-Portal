@@ -30,7 +30,37 @@ Cada `auth_method` tem um schema esperado — o backend rejeita payloads inváli
 
 ---
 
-## 2. Campos extras do guest no formulário do portal
+## 2. Duração de sessão Wi-Fi configurável por tenant
+
+**Status:** Implementado no banco (migration 009).
+
+Cada tenant define quanto tempo seus usuários ficam conectados após autenticação OTP.
+
+| Coluna | Tipo | Default | Constraint |
+|--------|------|---------|------------|
+| `tenants.session_duration_minutes` | INTEGER NOT NULL | 480 (8h) | CHECK 15–1440 (15 min a 24h) |
+
+**Exemplos de uso por cliente:**
+- Café / restaurante: 120 min (2h)
+- Escritório / coworking: 480 min (8h)
+- Hotel: 720 min (12h)
+- Evento: 1440 min (24h)
+
+**Onde é usado no código:**
+
+| Componente | O que fazer |
+|---|---|
+| **B4 — CRUD tenants** | Incluir `session_duration_minutes` no POST/PUT. Validar range 15–1440. |
+| **B6 — verify-otp** | Buscar o valor do tenant no banco. Calcular `expires_at = now() + duration`. Retornar `expires_in` real na response. |
+| **B7 — SonicWall** | Passar `sessionMinutes` real para `releaseAccess()` (não usar default 480). |
+| **F5 — Admin frontend** | Campo no modal de criar/editar tenant (input numérico com label "Duração da sessão"). |
+| **F2/F3 — Portal frontend** | Tela de sucesso exibe o tempo real vindo da response, não hardcoded "8 horas". |
+
+**Importante:** O portal backend lê o `session_duration_minutes` do banco usando o `TENANT_ID` do env. Não precisa de variável de ambiente extra.
+
+---
+
+## 3. Campos extras do guest no formulário do portal (migration 008)
 
 **Status:** Coluna `guest_name` criada (migration 008).
 
@@ -42,7 +72,7 @@ Não precisa de nova migration para adicionar campos no formulário — basta at
 
 ---
 
-## 3. Criptografia: CBC → GCM (futura melhoria)
+## 4. Criptografia: CBC → GCM (futura melhoria)
 
 **Status:** Usando AES-256-CBC (seguro, funcional).
 
@@ -55,7 +85,7 @@ Para projetos futuros ou quando houver revisão de segurança, considerar migrar
 
 ---
 
-## 4. Infraestrutura — VMs e deploy
+## 5. Infraestrutura — VMs e deploy
 
 **Status:** Planejado para após B6 (fluxo OTP completo).
 
@@ -84,7 +114,7 @@ Para projetos futuros ou quando houver revisão de segurança, considerar migrar
 
 ---
 
-## 5. Melhorias no pipeline de deploy (futuro)
+## 6. Melhorias no pipeline de deploy (futuro)
 
 - CI/CD com GitHub Actions (build + test + push image)
 - Auto-provisioning de tenants via API (criar container + nginx config automaticamente)
