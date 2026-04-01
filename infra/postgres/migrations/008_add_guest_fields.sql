@@ -14,6 +14,12 @@
 --       Email:    { "email": "user@example.com" }
 --       WhatsApp: { "phone": "+5511987654321", "whatsapp_verified": true }
 --       Social:   { "provider": "google", "provider_id": "abc123", "email": "..." }
+--
+-- IMPORTANTE — Validação do JSONB:
+--   O banco NÃO valida o conteúdo de guest_contact. A validação é feita na
+--   camada de aplicação (Fastify schema validation) antes de inserir.
+--   Ver: apps/backend/src/services/guest-contact-schema.ts (criado na B6)
+--   Cada auth_method tem um schema esperado — se o payload não bater, o backend rejeita.
 -- =============================================
 
 -- wifi_sessions: adiciona campos do guest
