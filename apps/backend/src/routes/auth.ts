@@ -223,8 +223,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     // 8. Calcula year_month e expires_at
     const now = new Date()
+    // Usa UTC para consistência com TIMESTAMPTZ do Postgres (armazena em UTC)
     const yearMonth = parseInt(
-      `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`,
+      `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
       10,
     )
     const expiresAt = new Date(now.getTime() + sessionMinutes * 60 * 1000)
