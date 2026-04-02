@@ -13,7 +13,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/migrations:/docker-entrypoint-initdb.d:ro
+      # Migrations são executadas via node-pg-migrate (npm run migrate),
+      # NÃO via docker-entrypoint-initdb.d — evita conflito de execução dupla.
     networks:
       - internal
     healthcheck:
@@ -94,6 +95,8 @@ services:
     build:
       context: ..
       dockerfile: apps/admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${ADMIN_API_URL}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${ADMIN_API_URL}

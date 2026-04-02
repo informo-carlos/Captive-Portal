@@ -12,7 +12,7 @@ COPY apps/frontend/package.json apps/frontend/package-lock.json ./
 
 # Ajusta o path do shared no package.json para o contexto do container
 RUN sed -i 's|file:../../packages/shared|file:./packages/shared|' package.json
-RUN npm ci
+RUN rm -f package-lock.json && npm install
 
 # ─── Build ─────────────────────────────────────────────
 FROM base AS builder
@@ -23,6 +23,9 @@ COPY --from=deps /app/packages ./packages
 COPY apps/frontend/ ./
 
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Garante que o diretório public/ exista (Next.js standalone precisa dele)
+RUN mkdir -p public
 
 RUN npm run build
 
