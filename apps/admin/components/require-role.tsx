@@ -29,13 +29,7 @@ export function RequireRole({ minRole, children }: RequireRoleProps) {
   }
 
   if (!hasRole(minRole)) {
-    return (
-      <div className="rounded-lg bg-yellow-50 p-6 text-center">
-        <p className="text-sm text-yellow-700">
-          Voce nao tem permissao para acessar esta pagina.
-        </p>
-      </div>
-    )
+    return null
   }
 
   return <>{children}</>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../lib/auth-context'
 import { ApiRequestError } from '../../lib/api'
@@ -13,11 +13,11 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Se ja esta autenticado, redirecionar
-  if (!authLoading && user) {
-    router.replace('/dashboard')
-    return null
-  }
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/dashboard')
+    }
+  }, [authLoading, user, router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -38,7 +38,7 @@ export default function LoginPage() {
     }
   }
 
-  if (authLoading) {
+  if (authLoading || user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />

@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setToken(null)
     setState({ user: null, loading: false })
+    // Hard navigation intencional para limpar todo estado client-side (cache React, refs, etc)
     window.location.href = '/login'
   }, [])
 
