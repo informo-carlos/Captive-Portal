@@ -28,7 +28,10 @@ async function buildApp() {
   fastify.decorate('config', config)
 
   // Plugins — ordem importa
-  await fastify.register(cors, { origin: true })
+  await fastify.register(cors, {
+    origin: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
   await fastify.register(postgresPlugin)
   await fastify.register(authPlugin)
   await fastify.register(auditPlugin)
