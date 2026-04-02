@@ -1,14 +1,22 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '../lib/auth-context'
+
 export default function Home() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading) {
+      router.replace(user ? '/dashboard' : '/login')
+    }
+  }, [loading, user, router])
+
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <div className="rounded-xl bg-white p-8 shadow-lg">
-        <h1 className="mb-2 text-2xl font-bold text-gray-900">
-          Captive Portal Admin
-        </h1>
-        <p className="text-sm text-gray-500">
-          Painel de gestao — F4 vai implementar login e layout
-        </p>
-      </div>
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
     </main>
   )
 }
