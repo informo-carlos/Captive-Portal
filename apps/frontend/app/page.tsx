@@ -3,8 +3,7 @@
 import { Suspense, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
-import { ApiRequestError } from '../lib/api'
-import { mockRequestOtp } from '../lib/mock-api'
+import { ApiRequestError, requestOtp } from '../lib/api'
 
 export default function PhonePageWrapper() {
   return (
@@ -18,6 +17,8 @@ function PhonePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const serial = searchParams.get('serial') || ''
+  const mac = searchParams.get('mac') || ''
+  const ip = searchParams.get('ip') || ''
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -38,8 +39,8 @@ function PhonePage() {
 
       setLoading(true)
       try {
-        await mockRequestOtp(phone, serial)
-        const params = new URLSearchParams({ serial, phone, name: name.trim() })
+        await requestOtp({ phone, mac, ip }, serial)
+        const params = new URLSearchParams({ serial, phone, name: name.trim(), mac, ip })
         router.push(`/otp?${params.toString()}`)
       } catch (err) {
         if (err instanceof ApiRequestError) {
@@ -62,7 +63,7 @@ function PhonePage() {
         setLoading(false)
       }
     },
-    [name, phone, serial, validationError, router],
+    [name, phone, serial, mac, ip, validationError, router],
   )
 
   return (

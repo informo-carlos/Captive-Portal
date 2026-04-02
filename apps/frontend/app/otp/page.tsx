@@ -4,8 +4,7 @@ import { Suspense, useState, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
-import { ApiRequestError } from '../../lib/api'
-import { mockVerifyOtp, mockRequestOtp, resetMockAttempts } from '../../lib/mock-api'
+import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
 
 export default function OtpPageWrapper() {
   return (
@@ -20,6 +19,8 @@ function OtpPage() {
   const searchParams = useSearchParams()
   const serial = searchParams.get('serial') || ''
   const phone = searchParams.get('phone') || ''
+  const mac = searchParams.get('mac') || ''
+  const ip = searchParams.get('ip') || ''
 
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''))
   const [loading, setLoading] = useState(false)
@@ -46,8 +47,7 @@ function OtpPage() {
     setResending(true)
     setError(null)
     try {
-      await mockRequestOtp(phone, serial)
-      resetMockAttempts()
+      await requestOtp({ phone, mac, ip }, serial)
       setOtpDigits(Array(6).fill(''))
       setExpired(false)
       setBlocked(false)
@@ -65,7 +65,7 @@ function OtpPage() {
     } finally {
       setResending(false)
     }
-  }, [phone, serial, router])
+  }, [phone, serial, mac, ip, router])
 
   const handleVerify = useCallback(async () => {
     const otp = otpDigits.join('')
@@ -75,7 +75,7 @@ function OtpPage() {
     setLoading(true)
 
     try {
-      await mockVerifyOtp(otp, serial)
+      await verifyOtp({ phone, otp }, serial)
       router.push(`/success?serial=${serial}`)
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -116,7 +116,7 @@ function OtpPage() {
     } finally {
       setLoading(false)
     }
-  }, [otpDigits, serial, router, triggerShake])
+  }, [otpDigits, phone, serial, router, triggerShake])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
