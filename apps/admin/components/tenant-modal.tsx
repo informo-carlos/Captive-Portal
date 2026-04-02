@@ -92,7 +92,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     }
     if (form.sw_mode === 'lhm') {
       if (!form.sw_guest_user.trim()) return 'Usuário guest service é obrigatório para modo LHM.'
-      if (!form.sw_guest_pass.trim()) return 'Senha guest service é obrigatória para modo LHM.'
+      if (!isEditing && !form.sw_guest_pass.trim()) return 'Senha guest service é obrigatória para modo LHM.'
     }
     return null
   }
@@ -357,13 +357,16 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Senha guest *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha guest {!isEditing && '*'}
+                    {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                  </label>
                   <input
                     type="password"
                     value={form.sw_guest_pass}
                     onChange={(e) => setField('sw_guest_pass', e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Senha guest"
+                    placeholder={isEditing ? '••••••••' : 'Senha guest'}
                   />
                 </div>
               </div>
