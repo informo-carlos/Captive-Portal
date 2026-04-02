@@ -1,11 +1,10 @@
 'use client'
 
-import { Suspense, useState, useCallback, useRef } from 'react'
+import { Suspense, useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
-import { ApiRequestError } from '../../lib/api'
-import { mockVerifyOtp, mockRequestOtp, resetMockAttempts } from '../../lib/mock-api'
+import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
 
 export default function OtpPageWrapper() {
   return (
@@ -20,6 +19,8 @@ function OtpPage() {
   const searchParams = useSearchParams()
   const serial = searchParams.get('serial') || ''
   const phone = searchParams.get('phone') || ''
+  const mac = searchParams.get('mac') || ''
+  const ip = searchParams.get('ip') || ''
 
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''))
   const [loading, setLoading] = useState(false)
@@ -31,6 +32,13 @@ function OtpPage() {
   const [timerKey, setTimerKey] = useState(0)
 
   const shakeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const missingParams = !serial || !phone || !mac || !ip
+
+  // Sem serial, phone, mac ou ip o fluxo não funciona
+  useEffect(() => {
+    if (missingParams) router.replace('/error')
+  }, [missingParams, router])
 
   const triggerShake = useCallback(() => {
     setShake(true)
@@ -46,8 +54,7 @@ function OtpPage() {
     setResending(true)
     setError(null)
     try {
-      await mockRequestOtp(phone, serial)
-      resetMockAttempts()
+      await requestOtp({ phone, mac, ip }, serial)
       setOtpDigits(Array(6).fill(''))
       setExpired(false)
       setBlocked(false)
@@ -65,7 +72,7 @@ function OtpPage() {
     } finally {
       setResending(false)
     }
-  }, [phone, serial, router])
+  }, [phone, serial, mac, ip, router])
 
   const handleVerify = useCallback(async () => {
     const otp = otpDigits.join('')
@@ -75,7 +82,7 @@ function OtpPage() {
     setLoading(true)
 
     try {
-      await mockVerifyOtp(otp, serial)
+      await verifyOtp({ phone, otp }, serial)
       router.push(`/success?serial=${serial}`)
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -116,7 +123,7 @@ function OtpPage() {
     } finally {
       setLoading(false)
     }
-  }, [otpDigits, serial, router, triggerShake])
+  }, [otpDigits, phone, serial, router, triggerShake])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -133,6 +140,8 @@ function OtpPage() {
   const phoneMasked = phone.length >= 10
     ? `(${phone.slice(0, 2)}) ${phone[2]}****-${phone.slice(-4)}`
     : phone
+
+  if (missingParams) return null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">

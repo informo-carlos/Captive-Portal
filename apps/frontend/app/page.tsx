@@ -1,10 +1,9 @@
 'use client'
 
-import { Suspense, useState, useCallback } from 'react'
+import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
-import { ApiRequestError } from '../lib/api'
-import { mockRequestOtp } from '../lib/mock-api'
+import { ApiRequestError, requestOtp } from '../lib/api'
 
 export default function PhonePageWrapper() {
   return (
@@ -18,12 +17,21 @@ function PhonePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const serial = searchParams.get('serial') || ''
+  const mac = searchParams.get('mac') || ''
+  const ip = searchParams.get('ip') || ''
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [nameTouched, setNameTouched] = useState(false)
+
+  const missingDeviceInfo = !serial || !mac || !ip
+
+  // SonicWall deve injetar serial, mac e ip no redirect — sem eles o fluxo não funciona
+  useEffect(() => {
+    if (missingDeviceInfo) router.replace('/error')
+  }, [missingDeviceInfo, router])
 
   const validationError = validatePhone(phone)
   const nameError = nameTouched && name.trim().length < 2 ? 'Informe seu nome.' : null
@@ -38,8 +46,8 @@ function PhonePage() {
 
       setLoading(true)
       try {
-        await mockRequestOtp(phone, serial)
-        const params = new URLSearchParams({ serial, phone, name: name.trim() })
+        await requestOtp({ phone, mac, ip }, serial)
+        const params = new URLSearchParams({ serial, phone, name: name.trim(), mac, ip })
         router.push(`/otp?${params.toString()}`)
       } catch (err) {
         if (err instanceof ApiRequestError) {
@@ -62,8 +70,10 @@ function PhonePage() {
         setLoading(false)
       }
     },
-    [name, phone, serial, validationError, router],
+    [name, phone, serial, mac, ip, validationError, router],
   )
+
+  if (missingDeviceInfo) return null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
