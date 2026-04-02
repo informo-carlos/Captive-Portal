@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useCallback } from 'react'
+import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
 import { ApiRequestError, requestOtp } from '../lib/api'
@@ -25,6 +25,13 @@ function PhonePage() {
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [nameTouched, setNameTouched] = useState(false)
+
+  const missingDeviceInfo = !serial || !mac || !ip
+
+  // SonicWall deve injetar serial, mac e ip no redirect — sem eles o fluxo não funciona
+  useEffect(() => {
+    if (missingDeviceInfo) router.replace('/error')
+  }, [missingDeviceInfo, router])
 
   const validationError = validatePhone(phone)
   const nameError = nameTouched && name.trim().length < 2 ? 'Informe seu nome.' : null
@@ -65,6 +72,8 @@ function PhonePage() {
     },
     [name, phone, serial, mac, ip, validationError, router],
   )
+
+  if (missingDeviceInfo) return null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">

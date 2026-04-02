@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useCallback, useRef } from 'react'
+import { Suspense, useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
@@ -32,6 +32,13 @@ function OtpPage() {
   const [timerKey, setTimerKey] = useState(0)
 
   const shakeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const missingParams = !serial || !phone || !mac || !ip
+
+  // Sem serial, phone, mac ou ip o fluxo não funciona
+  useEffect(() => {
+    if (missingParams) router.replace('/error')
+  }, [missingParams, router])
 
   const triggerShake = useCallback(() => {
     setShake(true)
@@ -133,6 +140,8 @@ function OtpPage() {
   const phoneMasked = phone.length >= 10
     ? `(${phone.slice(0, 2)}) ${phone[2]}****-${phone.slice(-4)}`
     : phone
+
+  if (missingParams) return null
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
