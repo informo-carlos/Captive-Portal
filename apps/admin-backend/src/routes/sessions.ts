@@ -5,23 +5,47 @@ import type { FastifyPluginAsync } from 'fastify'
  * +5511999994321 → +55 11 9****-4321
  */
 function maskPhone(phone: string): string {
-  // Remove tudo que não é dígito
   const digits = phone.replace(/\D/g, '')
 
-  // Brasil: 55 + DDD(2) + 9(1) + XXXX(4) + YYYY(4) = 13 dígitos
   if (digits.length === 13 && digits.startsWith('55')) {
     const ddd = digits.slice(2, 4)
     const last4 = digits.slice(-4)
     return `+55 ${ddd} 9****-${last4}`
   }
 
-  // Fallback genérico: mostra só os últimos 4
   if (digits.length >= 8) {
     const last4 = digits.slice(-4)
     return `+${'*'.repeat(digits.length - 4)}${last4}`
   }
 
   return '***'
+}
+
+/**
+ * Calcula os valores de year_month (YYYYMM) entre duas datas.
+ * Necessário para partition pruning na tabela wifi_sessions.
+ */
+function getYearMonthRange(from: string, to: string): number[] {
+  const start = new Date(from + 'T00:00:00Z')
+  const end = new Date(to + 'T00:00:00Z')
+  const months: number[] = []
+
+  let year = start.getUTCFullYear()
+  let month = start.getUTCMonth() + 1
+
+  const endYear = end.getUTCFullYear()
+  const endMonth = end.getUTCMonth() + 1
+
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    months.push(year * 100 + month)
+    month++
+    if (month > 12) {
+      month = 1
+      year++
+    }
+  }
+
+  return months
 }
 
 const sessionRoutes: FastifyPluginAsync = async (fastify) => {
@@ -34,8 +58,8 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           tenant_id: { type: 'string', format: 'uuid' },
-          from: { type: 'string' },
-          to: { type: 'string' },
+          from: { type: 'string', format: 'date' },
+          to: { type: 'string', format: 'date' },
           phone: { type: 'string' },
           page: { type: 'integer', minimum: 1, default: 1 },
           limit: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
@@ -78,6 +102,20 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     if (query.to) {
       conditions.push(`ws.auth_at < (($${paramIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
       params.push(query.to)
+    }
+
+    // Partition pruning: filtra por year_month para o PG pular partições irrelevantes
+    if (query.from && query.to) {
+      const months = getYearMonthRange(query.from, query.to)
+      conditions.push(`ws.year_month = ANY($${paramIdx++})`)
+      params.push(months)
+    } else if (query.from) {
+      // Sem 'to': do mês do from até o mês atual
+      const now = new Date()
+      const toFallback = now.toISOString().slice(0, 10)
+      const months = getYearMonthRange(query.from, toFallback)
+      conditions.push(`ws.year_month = ANY($${paramIdx++})`)
+      params.push(months)
     }
 
     if (query.phone) {
@@ -145,8 +183,8 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           tenant_id: { type: 'string', format: 'uuid' },
-          from: { type: 'string' },
-          to: { type: 'string' },
+          from: { type: 'string', format: 'date' },
+          to: { type: 'string', format: 'date' },
         },
       },
     },
@@ -171,6 +209,9 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     const fromDate = query.from || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
     const toDate = query.to || now.toISOString().slice(0, 10)
 
+    // Partition pruning para wifi_sessions
+    const yearMonths = getYearMonthRange(fromDate, toDate)
+
     // ── Condições compartilhadas ──
     const sessionConditions: string[] = []
     const attemptConditions: string[] = []
@@ -184,6 +225,8 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     sessionParams.push(fromDate)
     sessionConditions.push(`ws.auth_at < (($${sIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
     sessionParams.push(toDate)
+    sessionConditions.push(`ws.year_month = ANY($${sIdx++})`)
+    sessionParams.push(yearMonths)
 
     // Período — attempts
     attemptConditions.push(`aa.created_at >= ($${aIdx++})::date AT TIME ZONE 'UTC'`)

@@ -9,8 +9,8 @@ const auditLogRoutes: FastifyPluginAsync = async (fastify) => {
       querystring: {
         type: 'object',
         properties: {
-          from: { type: 'string' },
-          to: { type: 'string' },
+          from: { type: 'string', format: 'date' },
+          to: { type: 'string', format: 'date' },
           admin_user_id: { type: 'string', format: 'uuid' },
           action: { type: 'string' },
           page: { type: 'integer', minimum: 1, default: 1 },
