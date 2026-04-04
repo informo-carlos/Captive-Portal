@@ -7,6 +7,9 @@ import auditPlugin from './plugins/audit'
 import authRoutes from './routes/auth'
 import healthRoutes from './routes/health'
 import tenantRoutes from './routes/tenants'
+import sessionRoutes from './routes/sessions'
+import userRoutes from './routes/users'
+import auditLogRoutes from './routes/audit-logs'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -40,6 +43,9 @@ async function buildApp() {
   await fastify.register(healthRoutes)
   await fastify.register(authRoutes)
   await fastify.register(tenantRoutes)
+  await fastify.register(sessionRoutes)
+  await fastify.register(userRoutes)
+  await fastify.register(auditLogRoutes)
 
   return fastify
 }
