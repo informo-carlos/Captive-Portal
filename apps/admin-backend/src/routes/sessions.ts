@@ -71,12 +71,12 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (query.from) {
-      conditions.push(`ws.auth_at >= $${paramIdx++}`)
+      conditions.push(`ws.auth_at >= ($${paramIdx++})::date AT TIME ZONE 'UTC'`)
       params.push(query.from)
     }
 
     if (query.to) {
-      conditions.push(`ws.auth_at <= ($${paramIdx++})::date + INTERVAL '1 day'`)
+      conditions.push(`ws.auth_at < (($${paramIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
       params.push(query.to)
     }
 
@@ -179,16 +179,16 @@ const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     let sIdx = 1
     let aIdx = 1
 
-    // Período — sessions
-    sessionConditions.push(`ws.auth_at >= $${sIdx++}`)
+    // Período — sessions (AT TIME ZONE 'UTC' garante consistência com TIMESTAMPTZ)
+    sessionConditions.push(`ws.auth_at >= ($${sIdx++})::date AT TIME ZONE 'UTC'`)
     sessionParams.push(fromDate)
-    sessionConditions.push(`ws.auth_at <= ($${sIdx++})::date + INTERVAL '1 day'`)
+    sessionConditions.push(`ws.auth_at < (($${sIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
     sessionParams.push(toDate)
 
     // Período — attempts
-    attemptConditions.push(`aa.created_at >= $${aIdx++}`)
+    attemptConditions.push(`aa.created_at >= ($${aIdx++})::date AT TIME ZONE 'UTC'`)
     attemptParams.push(fromDate)
-    attemptConditions.push(`aa.created_at <= ($${aIdx++})::date + INTERVAL '1 day'`)
+    attemptConditions.push(`aa.created_at < (($${aIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
     attemptParams.push(toDate)
 
     if (query.tenant_id) {

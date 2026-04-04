@@ -85,12 +85,26 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     const passwordHash = await bcrypt.hash(body.password, BCRYPT_ROUNDS)
 
-    const result = await fastify.db.query(
-      `INSERT INTO admin_users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, role, created_at`,
-      [body.name, body.email, passwordHash, body.role],
-    )
+    let result
+    try {
+      result = await fastify.db.query(
+        `INSERT INTO admin_users (name, email, password_hash, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, email, role, created_at`,
+        [body.name, body.email, passwordHash, body.role],
+      )
+    } catch (err: unknown) {
+      // Race condition: UNIQUE constraint falhou entre o SELECT e o INSERT
+      if ((err as Record<string, unknown>).code === '23505') {
+        return reply.code(409).send({
+          error: 'conflict',
+          message: 'Este email já está cadastrado.',
+          field: 'email',
+          code: 409,
+        })
+      }
+      throw err
+    }
     const user = result.rows[0]
 
     await fastify.logAudit({
@@ -197,11 +211,24 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
     updates.push(`updated_at = CURRENT_TIMESTAMP`)
     values.push(id)
 
-    const result = await fastify.db.query(
-      `UPDATE admin_users SET ${updates.join(', ')} WHERE id = $${paramIdx}
-       RETURNING id, name, email, role, last_login, created_at, updated_at`,
-      values,
-    )
+    let result
+    try {
+      result = await fastify.db.query(
+        `UPDATE admin_users SET ${updates.join(', ')} WHERE id = $${paramIdx}
+         RETURNING id, name, email, role, last_login, created_at, updated_at`,
+        values,
+      )
+    } catch (err: unknown) {
+      if ((err as Record<string, unknown>).code === '23505') {
+        return reply.code(409).send({
+          error: 'conflict',
+          message: 'Este email já está cadastrado.',
+          field: 'email',
+          code: 409,
+        })
+      }
+      throw err
+    }
 
     await fastify.logAudit({
       adminUserId: request.admin.id,

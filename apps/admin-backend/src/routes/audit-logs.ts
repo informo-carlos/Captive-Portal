@@ -33,12 +33,12 @@ const auditLogRoutes: FastifyPluginAsync = async (fastify) => {
     let paramIdx = 1
 
     if (query.from) {
-      conditions.push(`al.created_at >= $${paramIdx++}`)
+      conditions.push(`al.created_at >= ($${paramIdx++})::date AT TIME ZONE 'UTC'`)
       params.push(query.from)
     }
 
     if (query.to) {
-      conditions.push(`al.created_at <= ($${paramIdx++})::date + INTERVAL '1 day'`)
+      conditions.push(`al.created_at < (($${paramIdx++})::date + INTERVAL '1 day') AT TIME ZONE 'UTC'`)
       params.push(query.to)
     }
 
