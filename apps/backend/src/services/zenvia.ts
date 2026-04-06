@@ -26,6 +26,14 @@ export async function sendOtpSms(
   config: ZenviaConfig,
   logger: FastifyBaseLogger,
 ): Promise<void> {
+  if (!config.token || !config.sender) {
+    logger.error(
+      { hasToken: !!config.token, hasSender: !!config.sender },
+      'zenvia_not_configured',
+    )
+    throw new Error('zenvia_not_configured')
+  }
+
   const text = `${params.tenantName}: seu código de acesso é ${params.otp}. Válido por 5 minutos.`
 
   const body = {
