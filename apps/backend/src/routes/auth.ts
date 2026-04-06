@@ -27,11 +27,23 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           phone: { type: 'string' },
           mac: { type: 'string' },
           ip: { type: 'string' },
+          // Params do redirect inicial do SonicWall (modo LHM).
+          // O frontend captura via useSearchParams() e envia aqui.
+          // Opcional: vazio em modo de teste / acesso direto.
+          lhm_params: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+          },
         },
       },
     },
   }, async (request, reply) => {
-    const { phone, mac, ip } = request.body as { phone: string; mac: string; ip: string }
+    const { phone, mac, ip, lhm_params } = request.body as {
+      phone: string
+      mac: string
+      ip: string
+      lhm_params?: Record<string, string>
+    }
 
     // 1. Normaliza phone para E.164
     const phoneE164 = normalizePhone(phone)
@@ -64,8 +76,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     // 3. Gera OTP
     const otp = generateOtp()
 
-    // 4. Salva no Redis com TTL de 5 minutos
-    await storeOtp(fastify.redis, request.tenantId, phoneE164, otp, mac, ip)
+    // 4. Salva no Redis com TTL de 5 minutos (inclui lhm_params se vieram)
+    await storeOtp(fastify.redis, request.tenantId, phoneE164, otp, mac, ip, lhm_params)
 
     // 5. Incrementa rate limit
     await incrementRateLimit(fastify.redis, request.tenantId, phoneE164)
@@ -205,9 +217,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     )
     const sessionMinutes = tenantResult.rows[0]?.session_duration_minutes ?? 480
 
-    // 7. Chama SonicWall para liberar acesso (stub na B6)
+    // 7. Chama SonicWall para liberar acesso.
+    // Em modo LHM, lhmParams (capturados no request-otp) são essenciais —
+    // sem eles a função retorna erro descritivo.
     const swResult = await releaseAccess(
-      { mac: stored.mac, ip: stored.ip, phone: phoneE164, sessionMinutes },
+      {
+        mac: stored.mac,
+        ip: stored.ip,
+        phone: phoneE164,
+        sessionMinutes,
+        lhmParams: stored.lhmParams,
+      },
       fastify.config.sonicwall,
       request.log,
     )
@@ -264,6 +284,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({
       message: 'Acesso liberado. Você já pode navegar.',
       expires_in: expiresInSeconds,
+      // Em modo LHM o frontend deve redirecionar o navegador pra essa URL —
+      // é o gateway local do SonicWall confirmando a autenticação. Vazio em
+      // modo REST/stub.
+      redirect_url: swResult.redirectUrl,
     })
   })
 }

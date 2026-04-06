@@ -4,6 +4,7 @@ import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
 import { ApiRequestError, requestOtp } from '../lib/api'
+import { extractLhmParams, serializeLhmParams } from '../lib/lhm-params'
 
 export default function PhonePageWrapper() {
   return (
@@ -19,6 +20,9 @@ function PhonePage() {
   const serial = searchParams.get('serial') || ''
   const mac = searchParams.get('mac') || ''
   const ip = searchParams.get('ip') || ''
+  // Captura quaisquer params extras injetados pelo SonicWall no modo LHM
+  // (sessionId, magic, mgmtBaseUrl, etc) — variam por firmware.
+  const lhmParams = extractLhmParams(searchParams)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -46,8 +50,10 @@ function PhonePage() {
 
       setLoading(true)
       try {
-        await requestOtp({ phone, mac, ip }, serial)
+        await requestOtp({ phone, mac, ip, lhm_params: lhmParams }, serial)
         const params = new URLSearchParams({ serial, phone, name: name.trim(), mac, ip })
+        const lhmSerialized = serializeLhmParams(lhmParams)
+        if (lhmSerialized) params.set('lhm', lhmSerialized)
         router.push(`/otp?${params.toString()}`)
       } catch (err) {
         if (err instanceof ApiRequestError) {
@@ -70,7 +76,7 @@ function PhonePage() {
         setLoading(false)
       }
     },
-    [name, phone, serial, mac, ip, validationError, router],
+    [name, phone, serial, mac, ip, lhmParams, validationError, router],
   )
 
   if (missingDeviceInfo) return null
