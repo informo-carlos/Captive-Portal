@@ -8,6 +8,7 @@ export interface PortalConfig {
   databaseUrl: string
   redisUrl: string
   zenviaToken: string
+  zenviaSender: string
   sonicwall: {
     host: string
     port: number
@@ -62,6 +63,7 @@ export function loadConfig(): PortalConfig {
     databaseUrl: requireEnv('DATABASE_URL'),
     redisUrl: process.env['REDIS_URL'] || 'redis://localhost:6379',
     zenviaToken: requireEnv('ZENVIA_TOKEN'),
+    zenviaSender: requireEnv('ZENVIA_SENDER'),
     sonicwall: {
       host: requireEnv('SONICWALL_HOST'),
       port: parseInt(process.env['SONICWALL_PORT'] || '443', 10),

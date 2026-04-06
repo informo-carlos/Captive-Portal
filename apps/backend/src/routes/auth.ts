@@ -74,7 +74,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       await sendOtpSms(
         { to: phoneE164.replace('+', ''), otp, tenantName: 'Portal Wi-Fi' },
-        fastify.config.zenviaToken,
+        { token: fastify.config.zenviaToken, sender: fastify.config.zenviaSender },
         request.log,
       )
     } catch (err) {
