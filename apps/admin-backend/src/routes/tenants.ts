@@ -8,6 +8,7 @@ interface TenantSerial {
 
 interface SonicwallConfig {
   host: string
+  port?: number
   user: string
   password: string
   firmware?: number
@@ -175,6 +176,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
             required: ['host', 'user', 'password', 'mode'],
             properties: {
               host: { type: 'string', minLength: 1 },
+              port: { type: 'integer', minimum: 1, maximum: 65535 },
               user: { type: 'string', minLength: 1 },
               password: { type: 'string', minLength: 1 },
               firmware: { type: 'integer' },
@@ -377,6 +379,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
             type: 'object',
             properties: {
               host: { type: 'string' },
+              port: { type: 'integer', minimum: 1, maximum: 65535 },
               user: { type: 'string' },
               password: { type: 'string' },
               firmware: { type: 'integer' },

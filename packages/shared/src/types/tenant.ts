@@ -6,6 +6,7 @@ export interface TenantSerial {
 
 export interface SonicwallConfig {
   host: string
+  port?: number
   user: string
   password?: string
   firmware?: number

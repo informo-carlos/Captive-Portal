@@ -10,6 +10,7 @@ export interface PortalConfig {
   zenviaToken: string
   sonicwall: {
     host: string
+    port: number
     user: string
     pass: string
     firmware: '6' | '7'
@@ -63,6 +64,7 @@ export function loadConfig(): PortalConfig {
     zenviaToken: requireEnv('ZENVIA_TOKEN'),
     sonicwall: {
       host: requireEnv('SONICWALL_HOST'),
+      port: parseInt(process.env['SONICWALL_PORT'] || '443', 10),
       user: requireEnv('SONICWALL_USER'),
       pass: requireEnv('SONICWALL_PASS'),
       firmware,
