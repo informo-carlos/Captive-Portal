@@ -216,6 +216,7 @@ export default function TenantDetailPage() {
               {tenant.sonicwall_config ? (
                 <>
                   <InfoRow label="Host" value={tenant.sonicwall_config.host} mono />
+                  <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
                   <InfoRow label="Usuário" value={tenant.sonicwall_config.user} />
                   <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
                   <InfoRow label="Modo" value={tenant.sonicwall_config.mode === 'lhm' ? 'LHM' : 'REST API'} />

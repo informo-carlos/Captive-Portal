@@ -17,6 +17,7 @@ interface FormData {
   serial_primary: string
   serial_secondary: string
   sw_host: string
+  sw_port: string
   sw_user: string
   sw_password: string
   sw_firmware: string
@@ -33,6 +34,7 @@ const EMPTY_FORM: FormData = {
   serial_primary: '',
   serial_secondary: '',
   sw_host: '',
+  sw_port: '',
   sw_user: '',
   sw_password: '',
   sw_firmware: '7',
@@ -60,6 +62,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         serial_primary: primary?.serial || '',
         serial_secondary: secondary?.serial || '',
         sw_host: tenant.sonicwall_config?.host || '',
+        sw_port: tenant.sonicwall_config?.port ? String(tenant.sonicwall_config.port) : '',
         sw_user: tenant.sonicwall_config?.user || '',
         sw_password: '',
         sw_firmware: String(tenant.sonicwall_config?.firmware || 7),
@@ -86,6 +89,12 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     if (!form.serial_primary.trim()) return 'Serial primário é obrigatório.'
     if (!isEditing) {
       if (!form.sw_host.trim()) return 'Host SonicWall é obrigatório.'
+    }
+    if (form.sw_port.trim()) {
+      const p = parseInt(form.sw_port)
+      if (isNaN(p) || p < 1 || p > 65535) return 'Porta SonicWall deve estar entre 1 e 65535.'
+    }
+    if (!isEditing) {
       if (!form.sw_user.trim()) return 'Usuário SonicWall é obrigatório.'
       if (!form.sw_password.trim()) return 'Senha SonicWall é obrigatória.'
       if (!form.zenvia_token.trim()) return 'Token Zenvia é obrigatório.'
@@ -119,6 +128,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         if (form.sw_host || form.sw_user || form.sw_password) {
           data.sonicwall_config = {}
           if (form.sw_host.trim()) data.sonicwall_config.host = form.sw_host.trim()
+          if (form.sw_port.trim()) data.sonicwall_config.port = parseInt(form.sw_port)
           if (form.sw_user.trim()) data.sonicwall_config.user = form.sw_user.trim()
           if (form.sw_password.trim()) data.sonicwall_config.password = form.sw_password.trim()
           data.sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
@@ -139,6 +149,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           serials: buildSerials(),
           sonicwall_config: {
             host: form.sw_host.trim(),
+            ...(form.sw_port.trim() && { port: parseInt(form.sw_port) }),
             user: form.sw_user.trim(),
             password: form.sw_password.trim(),
             firmware: parseInt(form.sw_firmware) || 7,
@@ -284,6 +295,20 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   onChange={(e) => setField('sw_host', e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="192.168.1.1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Porta de management <span className="text-xs text-gray-400">(default 443)</span>
+                </label>
+                <input
+                  type="number"
+                  value={form.sw_port}
+                  onChange={(e) => setField('sw_port', e.target.value)}
+                  min={1}
+                  max={65535}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="4040"
                 />
               </div>
               <div>
