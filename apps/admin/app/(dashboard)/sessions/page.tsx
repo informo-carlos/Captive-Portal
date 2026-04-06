@@ -20,6 +20,7 @@ export default function SessionsPage() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [phone, setPhone] = useState('')
+  const [appliedPhone, setAppliedPhone] = useState('')
   const [page, setPage] = useState(1)
 
   const fetchTenants = useCallback(async () => {
@@ -40,7 +41,7 @@ export default function SessionsPage() {
       if (tenantId) params.tenant_id = tenantId
       if (from) params.from = from
       if (to) params.to = to
-      if (phone) params.phone = phone
+      if (appliedPhone) params.phone = appliedPhone
       const res = await getSessions(params as Parameters<typeof getSessions>[0])
       setSessions(res.data)
       setPagination(res.pagination)
@@ -53,7 +54,7 @@ export default function SessionsPage() {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, from, to, phone, page])
+  }, [tenantId, from, to, appliedPhone, page])
 
   useEffect(() => {
     fetchTenants()
@@ -124,13 +125,13 @@ export default function SessionsPage() {
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1) } }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { setAppliedPhone(phone); setPage(1) } }}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Busca parcial..."
+            placeholder="Digite so numeros (ex: 11999994321)"
           />
         </div>
         <button
-          onClick={() => setPage(1)}
+          onClick={() => { setAppliedPhone(phone); setPage(1) }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
         >
           Filtrar

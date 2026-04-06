@@ -12,7 +12,7 @@ function formatDate(date: Date): string {
 
 function startOfMonth(): string {
   const d = new Date()
-  return formatDate(new Date(d.getFullYear(), d.getMonth(), 1))
+  return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)))
 }
 
 export default function DashboardPage() {

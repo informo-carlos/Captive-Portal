@@ -198,8 +198,8 @@ export function getReportSummary(
 
 // ─── Users ──────────────────────────────────────────────
 
-export function getUsers(): Promise<{ data: AdminUser[] }> {
-  return request<{ data: AdminUser[] }>('/admin/users')
+export function getUsers(): Promise<PaginatedResponse<AdminUser>> {
+  return request<PaginatedResponse<AdminUser>>('/admin/users?limit=100')
 }
 
 export function createUser(data: CreateUserRequest): Promise<AdminUser> {
