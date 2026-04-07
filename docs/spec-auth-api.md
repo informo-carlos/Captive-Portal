@@ -93,7 +93,14 @@ X-Sonicwall-Serial: SN-ABC123
 {
   "phone": "11987654321",
   "mac": "AA:BB:CC:DD:EE:FF",
-  "ip": "192.168.1.100"
+  "ip": "192.168.1.100",
+  "lhm_params": {
+    "sessionId": "0b712fd83b9f5313db5af1cea6b1004f",
+    "mgmtBaseUrl": "https://10.50.165.193:4043/",
+    "ufi": "0006b11184300",
+    "clientRedirectUrl": "https://10.50.165.193:444/",
+    "req": "http://www.google.com/"
+  }
 }
 ```
 
@@ -104,6 +111,7 @@ X-Sonicwall-Serial: SN-ABC123
 | phone | string | sim | Telefone BR (apenas dígitos, 10 ou 11 chars) |
 | mac | string | sim | MAC do cliente (formato AA:BB:CC:DD:EE:FF) |
 | ip | string | sim | IP do cliente na rede |
+| lhm_params | object | não | Query params injetados pelo SonicWall no redirect inicial (modo LHM). Capturados pelo frontend e repassados aqui. Máx. 16 keys, cada valor até 512 chars. Obrigatório quando o tenant está em `SONICWALL_MODE=lhm`. |
 
 #### Lógica de execução
 
@@ -224,6 +232,21 @@ HTTP/1.1 200 OK
   "expires_in": 28800
 }
 ```
+
+Em modo LHM, a resposta inclui também `redirect_url` apontando pro
+`externalGuestLogin.cgi` do gateway SonicWall — o frontend deve fazer
+`window.location.href` pra essa URL pra confirmar a auth no firewall:
+
+```http
+HTTP/1.1 200 OK
+{
+  "message": "Acesso liberado. Você já pode navegar.",
+  "expires_in": 28800,
+  "redirect_url": "https://10.50.165.193:4043/externalGuestLogin.cgi?sessId=0b712fd83b9f5313db5af1cea6b1004f&userName=AA%3ABB%3ACC%3ADD%3AEE%3AFF&sessionLifetime=28800&idleTimeout=1800"
+}
+```
+
+Em modo REST/stub o campo `redirect_url` é omitido.
 
 ```http
 HTTP/1.1 404 Not Found

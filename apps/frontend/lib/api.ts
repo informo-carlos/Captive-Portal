@@ -58,6 +58,12 @@ export interface RequestOtpParams {
   phone: string
   mac: string
   ip: string
+  /**
+   * Qualquer query param extra capturado no redirect inicial do SonicWall
+   * (modo LHM/External Guest Auth). Ex: sessionId, magic, mgmtBaseUrl, etc.
+   * Vai direto pro Redis junto com a sessão e é usado de volta no verify-otp.
+   */
+  lhm_params?: Record<string, string>
 }
 
 export interface RequestOtpResponse {
@@ -84,6 +90,12 @@ export interface VerifyOtpParams {
 export interface VerifyOtpResponse {
   message: string
   expires_in: number
+  /**
+   * Em modo LHM, o backend devolve uma URL pra qual o navegador deve ser
+   * redirecionado — é o gateway local do SonicWall confirmando a auth.
+   * Em modo REST/stub esse campo vem vazio e a UI mostra a tela de sucesso.
+   */
+  redirect_url?: string
 }
 
 export function verifyOtp(

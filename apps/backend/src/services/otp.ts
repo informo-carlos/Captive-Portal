@@ -11,6 +11,11 @@ interface OtpData {
   mac: string
   ip: string
   createdAt: string
+  /**
+   * Query params capturados no redirect inicial do SonicWall (modo LHM).
+   * Vazio quando o portal é acessado direto ou em modo REST.
+   */
+  lhmParams?: Record<string, string>
 }
 
 // Normaliza telefone brasileiro para E.164: +55XXXXXXXXXXX
@@ -66,9 +71,16 @@ export async function storeOtp(
   otp: string,
   mac: string,
   ip: string,
+  lhmParams?: Record<string, string>,
 ): Promise<void> {
   const key = `otp:${tenantId}:${phoneE164}`
-  const data: OtpData = { otp, mac, ip, createdAt: new Date().toISOString() }
+  const data: OtpData = {
+    otp,
+    mac,
+    ip,
+    createdAt: new Date().toISOString(),
+    ...(lhmParams && Object.keys(lhmParams).length > 0 ? { lhmParams } : {}),
+  }
   await redis.set(key, JSON.stringify(data), 'EX', OTP_TTL)
 }
 
