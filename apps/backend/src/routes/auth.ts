@@ -32,7 +32,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Opcional: vazio em modo de teste / acesso direto.
           lhm_params: {
             type: 'object',
-            additionalProperties: { type: 'string' },
+            // Limites pra evitar flood no Redis: máximo 16 keys, valores
+            // de até 512 chars (mgmtBaseUrl é o maior, geralmente <100).
+            maxProperties: 16,
+            additionalProperties: { type: 'string', maxLength: 512 },
           },
         },
       },
@@ -281,14 +284,20 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     )
 
     const expiresInSeconds = sessionMinutes * 60
-    return reply.send({
+    const responseBody: {
+      message: string
+      expires_in: number
+      redirect_url?: string
+    } = {
       message: 'Acesso liberado. Você já pode navegar.',
       expires_in: expiresInSeconds,
-      // Em modo LHM o frontend deve redirecionar o navegador pra essa URL —
-      // é o gateway local do SonicWall confirmando a autenticação. Vazio em
-      // modo REST/stub.
-      redirect_url: swResult.redirectUrl,
-    })
+    }
+    // Só inclui redirect_url quando o backend de fato montou uma (modo LHM).
+    // Em modo REST/stub o campo é omitido pra não vazar `undefined` no JSON.
+    if (swResult.redirectUrl) {
+      responseBody.redirect_url = swResult.redirectUrl
+    }
+    return reply.send(responseBody)
   })
 }
 

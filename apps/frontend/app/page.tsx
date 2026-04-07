@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useCallback, useEffect } from 'react'
+import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
 import { ApiRequestError, requestOtp } from '../lib/api'
@@ -21,8 +21,9 @@ function PhonePage() {
   const mac = searchParams.get('mac') || ''
   const ip = searchParams.get('ip') || ''
   // Captura quaisquer params extras injetados pelo SonicWall no modo LHM
-  // (sessionId, magic, mgmtBaseUrl, etc) — variam por firmware.
-  const lhmParams = extractLhmParams(searchParams)
+  // (sessionId, mgmtBaseUrl, ufi, etc) — variam por firmware.
+  // useMemo pra estabilizar a referência (evita recriar o useCallback toda render).
+  const lhmParams = useMemo(() => extractLhmParams(searchParams), [searchParams])
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')

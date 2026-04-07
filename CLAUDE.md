@@ -89,12 +89,12 @@ O **middleware `serial-guard`** roda em todas as rotas do portal e rejeita qualq
 ```
 services/sonicwall/
 ├── index.ts      ← sempre importar daqui — lê SONICWALL_MODE do env
-├── rest-api.ts   ← SonicOS REST API (implementado)
-└── lhm.ts        ← Lightweight Hotspot Messaging (stub — implementar depois)
+├── rest-api.ts   ← STUB DE SUCESSO (SonicOS API não suporta release de guest)
+└── lhm.ts        ← External Guest Auth (LHM) — implementação real
 ```
 
-`SONICWALL_MODE=rest` → usa SonicOS API REST com user/pass admin.
-`SONICWALL_MODE=lhm` → usa LHM na porta 4043 com conta `guest_service`. **Ainda não implementado — lhm.ts é um stub que lança erro descritivo.**
+`SONICWALL_MODE=rest` → **stub de sucesso**. A SonicOS API REST não expõe endpoint pra liberar guest individual por MAC/IP (validado contra TZ 570 + OpenAPI oficial). Use só em dev/staging/demo.
+`SONICWALL_MODE=lhm` → **modo de produção**. Usa External Guest Authentication: o backend monta `${mgmtBaseUrl}externalGuestLogin.cgi?sessId=...` e o navegador do usuário fala com o gateway local. A VPS nunca toca no SonicWall. Ver [docs/lhm-protocol-tz570.md](docs/lhm-protocol-tz570.md).
 
 ---
 

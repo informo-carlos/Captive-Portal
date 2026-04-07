@@ -1,11 +1,11 @@
 'use client'
 
-import { Suspense, useState, useCallback, useRef, useEffect } from 'react'
+import { Suspense, useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
 import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
-import { deserializeLhmParams } from '../../lib/lhm-params'
+import { deserializeLhmParams, isValidLhmRedirectUrl } from '../../lib/lhm-params'
 
 export default function OtpPageWrapper() {
   return (
@@ -24,7 +24,12 @@ function OtpPage() {
   const ip = searchParams.get('ip') || ''
   // Params LHM serializados pela página anterior — repassados ao backend no resend
   // e usados pelo backend de volta no verify-otp pra construir a redirect_url.
-  const lhmParams = deserializeLhmParams(searchParams.get('lhm') || '')
+  // useMemo pra estabilizar a referência (evita recriar useCallback a cada render).
+  const lhmSerialized = searchParams.get('lhm') || ''
+  const lhmParams = useMemo(
+    () => deserializeLhmParams(lhmSerialized),
+    [lhmSerialized],
+  )
 
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''))
   const [loading, setLoading] = useState(false)
@@ -89,9 +94,16 @@ function OtpPage() {
       const result = await verifyOtp({ phone, otp }, serial)
       // Em modo LHM o backend devolve uma URL do gateway SonicWall — o navegador
       // do usuário precisa ir até ela pra confirmar a auth no firewall.
+      // Validamos o formato (https + path /externalGuestLogin.cgi) pra mitigar
+      // open redirect caso o backend devolva qualquer coisa estranha.
       if (result.redirect_url) {
-        window.location.href = result.redirect_url
-        return
+        if (isValidLhmRedirectUrl(result.redirect_url)) {
+          window.location.href = result.redirect_url
+          return
+        }
+        // URL suspeita: trata como sucesso normal e loga no console.
+        // eslint-disable-next-line no-console
+        console.warn('redirect_url inválido recebido do backend, ignorando')
       }
       router.push(`/success?serial=${serial}`)
     } catch (err) {

@@ -1,34 +1,34 @@
-// ⚠️  ESTRATÉGIA REST DESCONTINUADA  ⚠️
+// Estratégia REST — STUB.
 //
-// Validamos contra um SonicWall TZ 570 (SonicOS 7.3.2) e contra a documentação
-// oficial do SonicOS API: NÃO existe endpoint REST público pra liberar um
-// guest individual por MAC/IP. Os endpoints /user/guest/* só fazem
-// configuração de perfis e logout em massa.
+// A SonicOS API (validada contra TZ 570 + OpenAPI oficial) NÃO expõe
+// endpoint pra liberar guest individual por MAC/IP. O caminho real de
+// produção é o LHM (External Guest Authentication) — ver lhm.ts.
 //
-// Esta função existe apenas para falhar de forma explícita se alguém ainda
-// configurar SONICWALL_MODE=rest. O caminho oficial pra liberar guest a
-// partir de portal externo é "External Guest Authentication" via LHM.
+// Esta estratégia existe como STUB DE SUCESSO pra ambientes onde o
+// SonicWall não está habilitado (dev, staging, demo) ou pra tenants
+// configurados em modo "open" enquanto não habilitam o LHM no firewall.
 //
-// Ver: services/sonicwall/lhm.ts
+// IMPORTANTE: em produção real, sempre use SONICWALL_MODE=lhm.
 
 import type { FastifyBaseLogger } from 'fastify'
 import type { ReleaseAccessParams, ReleaseAccessResult, SonicwallConfig } from './index'
 
 export async function releaseAccessRest(
-  _params: ReleaseAccessParams,
+  params: ReleaseAccessParams,
   _config: SonicwallConfig,
   logger: FastifyBaseLogger,
 ): Promise<ReleaseAccessResult> {
-  const message =
-    'SonicWall REST API não suporta liberação de guest por MAC/IP. ' +
-    'Configure SONICWALL_MODE=lhm e habilite External Guest Authentication ' +
-    'na zona Wi-Fi do SonicWall.'
-
-  logger.error({ mode: 'rest' }, 'sonicwall_rest_unsupported')
+  logger.warn(
+    { mac: params.mac, mode: 'rest' },
+    'sonicwall_rest_stub_success',
+  )
 
   return {
-    success: false,
-    raw: { error: 'rest_mode_unsupported', message },
+    success: true,
+    raw: {
+      protocol: 'rest-stub',
+      note: 'REST mode é stub — para liberar guest de verdade use SONICWALL_MODE=lhm',
+    },
     mode: 'rest',
   }
 }

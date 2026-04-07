@@ -1,47 +1,75 @@
 // LHM — Lightweight Hotspot Messaging / External Guest Authentication
 //
-// Modelo de comunicação:
+// Protocolo (mapeado a partir da KB SonicWall + django-sonicwall + LHM FAQ):
 //
-//   1. Cliente Wi-Fi conecta no SSID com External Guest Auth habilitado
-//   2. SonicWall intercepta o tráfego HTTP e redireciona pra URL do nosso
-//      portal, INJETANDO query params como sessionId, mac, ip, srcZone,
-//      mgmtBaseUrl, magic. Os nomes/quantidade variam por firmware.
-//   3. Nosso serial-guard captura esses params e armazena no Redis junto
-//      com a sessão OTP, indexado por (tenantId, mac).
-//   4. Usuário faz fluxo OTP normal.
-//   5. No verify-otp, em vez de chamar API REST do SonicWall, esta função
-//      MONTA uma URL especial DO PRÓPRIO SONICWALL (geralmente apontando
-//      pro mgmtBaseUrl que veio no redirect) e devolve no `redirectUrl`.
-//   6. O frontend redireciona o navegador do usuário pra essa URL. Como
-//      o navegador está DENTRO da rede do cliente, fala com o gateway
-//      local — nossa VPS NUNCA toca no SonicWall.
+//   1. Cliente conecta ao SSID com External Guest Auth habilitado.
+//   2. SonicWall intercepta HTTP e redireciona pro nosso portal injetando:
+//        sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
+//   3. Capturamos esses params no frontend e enviamos no request-otp.
+//      Backend guarda em Redis junto com o OTP.
+//   4. Após verify-otp OK, esta função MONTA a URL de retorno:
+//        ${mgmtBaseUrl}externalGuestLogin.cgi?sessId=...&userName=<mac>
+//          &sessionLifetime=<sec>&idleTimeout=<sec>
+//   5. Devolve essa URL no `redirectUrl`. O frontend faz `window.location`
+//      pra ela. Como o navegador do usuário está DENTRO da rede do cliente,
+//      ele alcança o gateway local — nossa VPS NUNCA toca no SonicWall.
+//   6. SonicWall valida o sessId, libera o acesso e redireciona o usuário
+//      pro `req` original.
 //
-// IMPORTANTE: o formato exato da URL de retorno e o cálculo do hash/magic
-// dependem do firmware do SonicWall. Os TODOs abaixo só podem ser
-// preenchidos com o protocolo capturado contra um aparelho real.
-// Ver: docs/lhm-protocol-tz570.md (a ser criado na sessão de mapeamento)
+// Ver: docs/lhm-protocol-tz570.md
 
 import type { FastifyBaseLogger } from 'fastify'
 import type { ReleaseAccessParams, ReleaseAccessResult, SonicwallConfig } from './index'
 
 /**
- * Lista de nomes de query params que SonicWalls em modo External Guest Auth
- * costumam injetar no redirect inicial. Capturamos qualquer um que aparecer
- * e guardamos cru — não validamos formato aqui porque varia por firmware.
+ * Nomes dos query params que SonicWalls em modo External Guest Auth injetam
+ * no redirect inicial. Capturamos qualquer um que vier — só sessionId e
+ * mgmtBaseUrl são obrigatórios.
  */
 export const KNOWN_LHM_PARAM_NAMES = [
   'sessionId',
-  'mac',
   'ip',
-  'srcZone',
-  'dstZone',
+  'mac',
+  'ufi',
   'mgmtBaseUrl',
   'clientRedirectUrl',
-  'magic',
-  'hash',
-  'ifName',
-  'urlFragment',
+  'req',
+  'cc',
 ] as const
+
+/** Limite do path do mgmtBaseUrl pra evitar SSRF/abuso. */
+const MAX_MGMT_BASE_URL_LENGTH = 512
+
+function isValidMgmtBaseUrl(raw: string): boolean {
+  if (!raw || raw.length > MAX_MGMT_BASE_URL_LENGTH) return false
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
+  // SonicWall sempre injeta hostname/IP — rejeita URLs sem host
+  if (!url.hostname) return false
+  return true
+}
+
+function buildExternalGuestLoginUrl(
+  mgmtBaseUrl: string,
+  sessionId: string,
+  userName: string,
+  sessionLifetimeSec: number,
+  idleTimeoutSec: number,
+): string {
+  // Garante que mgmtBaseUrl termina com `/` antes de concatenar
+  const base = mgmtBaseUrl.endsWith('/') ? mgmtBaseUrl : `${mgmtBaseUrl}/`
+  const url = new URL('externalGuestLogin.cgi', base)
+  url.searchParams.set('sessId', sessionId)
+  url.searchParams.set('userName', userName)
+  url.searchParams.set('sessionLifetime', String(sessionLifetimeSec))
+  url.searchParams.set('idleTimeout', String(idleTimeoutSec))
+  return url.toString()
+}
 
 export async function releaseAccessLhm(
   params: ReleaseAccessParams,
@@ -49,13 +77,14 @@ export async function releaseAccessLhm(
   logger: FastifyBaseLogger,
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
+  const sessionId = lhm['sessionId']
+  const mgmtBaseUrl = lhm['mgmtBaseUrl']
 
-  // Sem os params do redirect inicial não há LHM possível — significa que
-  // o usuário chegou no portal sem passar pelo SonicWall (ex: acesso direto
-  // por IP). Nesse caso falhamos com erro claro.
-  if (!lhm['mac'] && !lhm['sessionId']) {
+  // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
+  // sem passar pelo SonicWall (ex: digitou o IP direto).
+  if (!sessionId || !mgmtBaseUrl) {
     logger.error(
-      { hasLhmParams: Object.keys(lhm).length > 0, lhmKeys: Object.keys(lhm) },
+      { lhmKeys: Object.keys(lhm) },
       'lhm_missing_redirect_params',
     )
     return {
@@ -70,39 +99,51 @@ export async function releaseAccessLhm(
     }
   }
 
-  // TODO(fase 2): preencher após mapeamento contra TZ 570
-  //
-  // O que falta descobrir na sessão ao vivo com o aparelho:
-  //
-  //   1. Qual é a URL base que o SonicWall espera de volta?
-  //      Hipóteses comuns:
-  //        - https://<gateway>:8081/sonicui/7/login/auth (porta interna do SonicOS)
-  //        - O próprio mgmtBaseUrl que veio no redirect
-  //        - Uma URL fixa configurada no External Guest Auth
-  //
-  //   2. Quais query params/body o redirect de volta precisa carregar?
-  //      Hipóteses: sessionId, mac, magic (ecoado do redirect inicial),
-  //      authenticated=1, e possivelmente um HMAC calculado com
-  //      guest_service_pass + sessionId.
-  //
-  //   3. Precisa de algum HMAC/assinatura? Em qual formato?
-  //
-  // Até a fase 2, retornamos erro descritivo pra não dar falso positivo.
+  if (!isValidMgmtBaseUrl(mgmtBaseUrl)) {
+    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_invalid_mgmt_base_url')
+    return {
+      success: false,
+      raw: {
+        error: 'invalid_mgmt_base_url',
+        message: 'mgmtBaseUrl inválido no redirect do SonicWall.',
+      },
+      mode: 'lhm',
+    }
+  }
 
-  logger.error(
-    { lhmParams: lhm, mac: params.mac, ip: params.ip },
-    'lhm_protocol_not_yet_mapped',
+  // sessionLifetime e idleTimeout em segundos.
+  // sessionMinutes vem do tenant; idleTimeout fixo em 30min (default razoável).
+  const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
+  const idleTimeoutSec = 30 * 60
+
+  const redirectUrl = buildExternalGuestLoginUrl(
+    mgmtBaseUrl,
+    sessionId,
+    params.mac, // SonicWall aceita o MAC como userName
+    sessionLifetimeSec,
+    idleTimeoutSec,
+  )
+
+  logger.info(
+    {
+      lhmKeys: Object.keys(lhm),
+      sessionLifetimeSec,
+      idleTimeoutSec,
+    },
+    'lhm_redirect_built',
   )
 
   return {
-    success: false,
+    success: true,
     raw: {
-      error: 'lhm_protocol_not_mapped',
-      message:
-        'LHM aguardando mapeamento do protocolo contra o SonicWall TZ 570. ' +
-        'Ver TODO em services/sonicwall/lhm.ts',
-      capturedParams: lhm,
+      protocol: 'lhm',
+      sessionLifetimeSec,
+      idleTimeoutSec,
+      // Não logamos sessionId/mgmtBaseUrl aqui — vão pro DB criptografado/raw
+      // só com as keys presentes.
+      lhmKeys: Object.keys(lhm),
     },
     mode: 'lhm',
+    redirectUrl,
   }
 }
