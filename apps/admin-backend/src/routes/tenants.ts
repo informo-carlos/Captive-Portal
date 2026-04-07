@@ -112,6 +112,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     const dataParams = [...params, limit, offset]
     const result = await fastify.db.query(
       `SELECT t.id, t.name, t.port, t.status, t.sonicwall_config, t.zenvia_token,
+              t.zenvia_sender, t.provisioning_error, t.container_id, t.provisioned_at,
               t.session_duration_minutes, t.created_at, t.updated_at,
               COALESCE(
                 (SELECT json_agg(json_build_object('id', ts.id, 'serial', ts.serial, 'role', ts.role))
@@ -132,6 +133,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       status: row['status'],
       serials: row['serials'],
       sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
+      // Não retornamos o sender em si — apenas se está configurado.
+      // Mesmo padrão do password: nunca sai do backend depois de gravado.
+      has_zenvia_sender: !!row['zenvia_sender'],
+      provisioning_error: row['provisioning_error'] ?? null,
+      container_id: row['container_id'] ?? null,
+      provisioned_at: row['provisioned_at'] ?? null,
       session_duration_minutes: row['session_duration_minutes'],
       sessions_count: row['sessions_count'],
       created_at: row['created_at'],
@@ -154,7 +161,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     schema: {
       body: {
         type: 'object',
-        required: ['name', 'port', 'serials', 'sonicwall_config', 'zenvia_token'],
+        required: ['name', 'port', 'serials', 'sonicwall_config', 'zenvia_token', 'zenvia_sender'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 255 },
           port: { type: 'integer', minimum: 29000, maximum: 29999 },
@@ -187,6 +194,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
             },
           },
           zenvia_token: { type: 'string', minLength: 1 },
+          zenvia_sender: { type: 'string', minLength: 1, maxLength: 64 },
           session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440, default: 480 },
         },
       },
@@ -198,6 +206,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       serials: TenantSerial[]
       sonicwall_config: SonicwallConfig
       zenvia_token: string
+      zenvia_sender: string
       session_duration_minutes?: number
     }
 
@@ -250,13 +259,24 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       // 3. Criptografa campos sensíveis
       const encryptedConfig = encrypt(JSON.stringify(body.sonicwall_config), encryptionKey)
       const encryptedZenvia = encrypt(body.zenvia_token, encryptionKey)
+      const encryptedSender = encrypt(body.zenvia_sender, encryptionKey)
 
-      // 4. Insere tenant
+      // 4. Insere tenant — começa em status='provisioning'.
+      // O worker (apps/provisioner) vai pegar o registro, criar o container
+      // Docker e o bloco nginx, e mover pra 'active'. Em caso de falha, vai
+      // pra 'failed' com a mensagem em provisioning_error.
       const insertResult = await client.query(
-        `INSERT INTO tenants (name, port, status, sonicwall_config, zenvia_token, session_duration_minutes)
-         VALUES ($1, $2, 'active', $3, $4, $5)
+        `INSERT INTO tenants (name, port, status, sonicwall_config, zenvia_token, zenvia_sender, session_duration_minutes)
+         VALUES ($1, $2, 'provisioning', $3, $4, $5, $6)
          RETURNING id, name, port, status, session_duration_minutes, created_at`,
-        [body.name, body.port, JSON.stringify({ encrypted: encryptedConfig }), encryptedZenvia, body.session_duration_minutes ?? 480],
+        [
+          body.name,
+          body.port,
+          JSON.stringify({ encrypted: encryptedConfig }),
+          encryptedZenvia,
+          encryptedSender,
+          body.session_duration_minutes ?? 480,
+        ],
       )
       const tenant = insertResult.rows[0]
 
@@ -343,6 +363,10 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       status: row.status,
       serials: row.serials,
       sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
+      has_zenvia_sender: !!row.zenvia_sender,
+      provisioning_error: row.provisioning_error ?? null,
+      container_id: row.container_id ?? null,
+      provisioned_at: row.provisioned_at ?? null,
       session_duration_minutes: row.session_duration_minutes,
       stats: {
         total_sessions: stats.total_sessions,
@@ -390,6 +414,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
             },
           },
           zenvia_token: { type: 'string' },
+          zenvia_sender: { type: 'string', minLength: 1, maxLength: 64 },
           session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440 },
         },
       },
@@ -462,6 +487,14 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         updates.push(`zenvia_token = $${paramIdx++}`)
         values.push(encryptedZenvia)
         changes['zenvia_token'] = 'updated'
+      }
+
+      // zenvia_sender
+      if (body['zenvia_sender'] !== undefined) {
+        const encryptedSender = encrypt(body['zenvia_sender'] as string, encryptionKey)
+        updates.push(`zenvia_sender = $${paramIdx++}`)
+        values.push(encryptedSender)
+        changes['zenvia_sender'] = 'updated'
       }
 
       // serials — se enviados, substituir
@@ -580,6 +613,43 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.logAudit({
       adminUserId: request.admin.id,
       action,
+      payload: { tenant_id: id },
+      ipAddress: request.ip,
+    })
+
+    return reply.code(200).send(result.rows[0])
+  })
+
+  // ─── POST /admin/tenants/:id/retry-provisioning ────────
+  // Reseta um tenant em status='failed' de volta pra 'provisioning' pro
+  // worker tentar de novo. Útil quando o admin corrigiu algo (ex: cert
+  // SonicWall, libera porta no host) e quer reativar sem recriar.
+  fastify.post('/admin/tenants/:id/retry-provisioning', {
+    preHandler: [fastify.authenticate, fastify.requireRole('admin')],
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const result = await fastify.db.query(
+      `UPDATE tenants
+         SET status = 'provisioning',
+             provisioning_error = NULL,
+             updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND deleted_at IS NULL AND status = 'failed'
+       RETURNING id, name, status`,
+      [id],
+    )
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({
+        error: 'not_found',
+        message: 'Tenant não encontrado ou não está em estado failed.',
+        code: 404,
+      })
+    }
+
+    await fastify.logAudit({
+      adminUserId: request.admin.id,
+      action: 'tenant_retry_provisioning',
       payload: { tenant_id: id },
       ipAddress: request.ip,
     })

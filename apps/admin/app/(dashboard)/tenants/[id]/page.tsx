@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { TenantDetail } from '@captive-portal/shared'
-import { getTenant, updateTenantStatus, deleteTenant } from '../../../../lib/api'
+import { getTenant, updateTenantStatus, deleteTenant, retryTenantProvisioning } from '../../../../lib/api'
 import { ApiRequestError } from '../../../../lib/api'
 import { useAuth } from '../../../../lib/auth-context'
 import { TenantModal } from '../../../../components/tenant-modal'
@@ -47,6 +47,28 @@ export default function TenantDetailPage() {
   useEffect(() => {
     fetchTenant()
   }, [fetchTenant])
+
+  // Polling enquanto provisionando — o worker demora alguns segundos pra
+  // criar o container, esse refresh dá feedback visual sem F5.
+  useEffect(() => {
+    if (tenant?.status !== 'provisioning') return
+    const handle = setInterval(fetchTenant, 3000)
+    return () => clearInterval(handle)
+  }, [tenant?.status, fetchTenant])
+
+  const [retrying, setRetrying] = useState(false)
+  const handleRetryProvisioning = async () => {
+    if (!tenant) return
+    setRetrying(true)
+    try {
+      await retryTenantProvisioning(tenant.id)
+      await fetchTenant()
+    } catch (err) {
+      if (err instanceof ApiRequestError) setError(err.message)
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const handleToggleStatus = async () => {
     if (!tenant) return
@@ -106,17 +128,24 @@ export default function TenantDetailPage() {
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
+      provisioning: 'bg-blue-100 text-blue-800',
       active: 'bg-green-100 text-green-800',
       inactive: 'bg-yellow-100 text-yellow-800',
+      failed: 'bg-red-100 text-red-800',
       deleted: 'bg-red-100 text-red-800',
     }
     const labels: Record<string, string> = {
+      provisioning: 'Provisionando...',
       active: 'Ativo',
       inactive: 'Inativo',
+      failed: 'Falhou',
       deleted: 'Deletado',
     }
     return (
-      <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status === 'provisioning' && (
+          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+        )}
         {labels[status] || status}
       </span>
     )
@@ -166,6 +195,45 @@ export default function TenantDetailPage() {
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Banner de provisioning */}
+      {tenant.status === 'provisioning' && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          <div>
+            <p className="font-medium">Provisionando container do tenant...</p>
+            <p className="mt-0.5 text-blue-700">
+              O worker está criando o container Docker, rodando healthcheck e configurando o nginx.
+              Essa página vai atualizar automaticamente.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Banner de failure */}
+      {tenant.status === 'failed' && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">Provisionamento falhou</p>
+              {tenant.provisioning_error && (
+                <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-700">
+                  {tenant.provisioning_error}
+                </pre>
+              )}
+            </div>
+            {canEdit && (
+              <button
+                onClick={handleRetryProvisioning}
+                disabled={retrying}
+                className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {retrying ? 'Tentando...' : 'Tentar novamente'}
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

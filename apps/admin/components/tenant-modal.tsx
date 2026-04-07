@@ -26,6 +26,7 @@ interface FormData {
   sw_guest_user: string
   sw_guest_pass: string
   zenvia_token: string
+  zenvia_sender: string
 }
 
 const EMPTY_FORM: FormData = {
@@ -43,6 +44,7 @@ const EMPTY_FORM: FormData = {
   sw_guest_user: '',
   sw_guest_pass: '',
   zenvia_token: '',
+  zenvia_sender: '',
 }
 
 export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
@@ -71,6 +73,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         sw_guest_user: tenant.sonicwall_config?.guest_service_user || '',
         sw_guest_pass: '',
         zenvia_token: '',
+        zenvia_sender: '',
       })
     }
   }, [tenant])
@@ -98,6 +101,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
       if (!form.sw_user.trim()) return 'Usuário SonicWall é obrigatório.'
       if (!form.sw_password.trim()) return 'Senha SonicWall é obrigatória.'
       if (!form.zenvia_token.trim()) return 'Token Zenvia é obrigatório.'
+      if (!form.zenvia_sender.trim()) return 'Sender Zenvia é obrigatório.'
     }
     if (form.sw_mode === 'lhm') {
       if (!form.sw_guest_user.trim()) return 'Usuário guest service é obrigatório para modo LHM.'
@@ -140,6 +144,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           }
         }
         if (form.zenvia_token.trim()) data.zenvia_token = form.zenvia_token.trim()
+        if (form.zenvia_sender.trim()) data.zenvia_sender = form.zenvia_sender.trim()
 
         await updateTenant(tenant!.id, data)
       } else {
@@ -161,6 +166,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             }),
           },
           zenvia_token: form.zenvia_token.trim(),
+          zenvia_sender: form.zenvia_sender.trim(),
         }
 
         await createTenant(data)
@@ -401,18 +407,37 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           {/* Zenvia */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Zenvia (SMS)</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Token {!isEditing && '*'}
-                {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
-              </label>
-              <input
-                type="password"
-                value={form.zenvia_token}
-                onChange={(e) => setField('zenvia_token', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder={isEditing ? '••••••••' : 'Token da API Zenvia'}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Token {!isEditing && '*'}
+                  {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                </label>
+                <input
+                  type="password"
+                  value={form.zenvia_token}
+                  onChange={(e) => setField('zenvia_token', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder={isEditing ? '••••••••' : 'Token da API Zenvia'}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sender {!isEditing && '*'}
+                  {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                </label>
+                <input
+                  type="text"
+                  value={form.zenvia_sender}
+                  onChange={(e) => setField('zenvia_sender', e.target.value)}
+                  maxLength={64}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder={isEditing ? 'inalterado' : 'rafael.mosella'}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Identificador do remetente na Zenvia (aparece como &ldquo;from&rdquo; no SMS).
+                </p>
+              </div>
             </div>
           </div>
 

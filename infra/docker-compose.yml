@@ -45,13 +45,11 @@ services:
       - "443:443"
       - "8080:8080"
       - "8000:8000"
-      # Portas dos tenants (adicionar conforme novos clientes)
-      - "29000:29000"
-      - "29001:29001"
-      - "29002:29002"
-      # Adicionar mais portas aqui ao criar novos tenants
+      # Range de portas dos tenants — provisioner aloca dinamicamente
+      - "29000-29099:29000-29099"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_tenants_conf:/etc/nginx/conf.d/tenants
       - certbot_certs:/etc/letsencrypt:ro
     depends_on:
       - admin-backend
@@ -184,10 +182,41 @@ services:
   #   networks:
   #     - internal
 
+  # ─────────────────────────────────────────
+  # Provisioner — worker que cria containers de tenants sob demanda
+  # ─────────────────────────────────────────
+
+  provisioner:
+    build:
+      context: ../apps/provisioner
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/captive_portal
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      PORTAL_IMAGE: infra-portal-cliente-exemplo
+      INTERNAL_NETWORK: infra_internal
+      NGINX_CONF_DIR: /etc/nginx/conf.d/tenants
+      NGINX_CONTAINER: infra-nginx-1
+      POLL_INTERVAL_MS: "5000"
+      HEALTHCHECK_TIMEOUT_SEC: "60"
+      NODE_ENV: production
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nginx_tenants_conf:/etc/nginx/conf.d/tenants
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
 volumes:
   postgres_data:
   redis_data:
   certbot_certs:
+  nginx_tenants_conf:
 
 networks:
   internal:

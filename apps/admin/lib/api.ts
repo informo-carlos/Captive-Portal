@@ -160,6 +160,12 @@ export function deleteTenant(id: string): Promise<void> {
   return request<void>(`/admin/tenants/${id}`, { method: 'DELETE' })
 }
 
+export function retryTenantProvisioning(id: string): Promise<Tenant> {
+  return request<Tenant>(`/admin/tenants/${id}/retry-provisioning`, {
+    method: 'POST',
+  })
+}
+
 // ─── Sessions ───────────────────────────────────────────
 
 export function getSessions(
