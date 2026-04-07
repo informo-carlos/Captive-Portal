@@ -52,7 +52,17 @@ function decryptSonicwallConfig(raw: unknown): SonicwallConfigDecrypted {
   return JSON.parse(json) as SonicwallConfigDecrypted
 }
 
-/** Busca tenants que precisam ser provisionados (status='provisioning'). */
+/**
+ * Busca tenants que precisam ser provisionados (status='provisioning').
+ *
+ * ATENÇÃO — concorrência: esta query assume que existe apenas UMA réplica
+ * do provisioner rodando. Se no futuro escalarmos pra mais de uma réplica,
+ * duas vão fazer o SELECT simultaneamente e tentar provisionar o mesmo
+ * tenant (race condition). O fix correto exige uma coluna `claimed_at` +
+ * UPDATE atômico com RETURNING, ou advisory lock por tenant.id. Um
+ * `FOR UPDATE SKIP LOCKED` simples NÃO resolve porque auto-commit libera
+ * o lock assim que a query retorna. Review do Carlos no PR #18.
+ */
 export async function fetchPendingTenants(): Promise<PendingTenant[]> {
   const res = await pool.query<TenantRow>(
     `SELECT t.id, t.name, t.port, t.status, t.sonicwall_config,

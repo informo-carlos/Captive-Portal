@@ -122,15 +122,43 @@ export async function waitContainerHealthy(
   throw new Error(`Timeout de ${timeoutSec}s aguardando o container ficar saudável`)
 }
 
-/** Reload do nginx via docker exec (sem precisar reiniciar o container). */
+/**
+ * Reload do nginx via docker exec. Antes de reload, roda `nginx -t` pra
+ * validar a sintaxe da config gerada e aguarda o ExitCode de cada exec.
+ * Se qualquer comando sair com código != 0, joga erro (tenant vai pra
+ * status=failed em vez de ser marcado active silenciosamente).
+ */
 export async function reloadNginx(): Promise<void> {
   const container = docker.getContainer(config.nginxContainer)
+  await runExecOrThrow(container, ['nginx', '-t'], 'nginx_test')
+  await runExecOrThrow(container, ['nginx', '-s', 'reload'], 'nginx_reload')
+}
+
+async function runExecOrThrow(
+  container: Docker.Container,
+  cmd: string[],
+  label: string,
+): Promise<void> {
   const exec = await container.exec({
-    Cmd: ['nginx', '-s', 'reload'],
+    Cmd: cmd,
     AttachStdout: true,
     AttachStderr: true,
   })
-  await exec.start({})
+  const stream = await exec.start({})
+  // Drena stdout/stderr pra garantir que o processo termine antes do inspect.
+  const chunks: Buffer[] = []
+  await new Promise<void>((resolve, reject) => {
+    stream.on('data', (c: Buffer) => chunks.push(c))
+    stream.on('end', () => resolve())
+    stream.on('error', (e) => reject(e))
+  })
+  const info = await exec.inspect()
+  if (info.ExitCode !== 0) {
+    const output = Buffer.concat(chunks).toString('utf8').slice(0, 500)
+    throw new Error(
+      `${label} falhou (exit=${info.ExitCode}): ${output || '(sem saída)'}`,
+    )
+  }
 }
 
 function sleep(ms: number): Promise<void> {

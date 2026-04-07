@@ -51,6 +51,7 @@ async function processTenant(tenant: PendingTenant): Promise<void> {
 }
 
 let stopping = false
+let loopFinished: Promise<void> | null = null
 
 async function loop(): Promise<void> {
   while (!stopping) {
@@ -59,6 +60,9 @@ async function loop(): Promise<void> {
       if (pending.length > 0) {
         log('info', 'pending_tenants_found', { count: pending.length })
         for (const tenant of pending) {
+          // Não interrompemos um processTenant já iniciado — deixamos ele
+          // terminar (sucesso ou failed) pra não deixar tenant preso em
+          // 'provisioning'. Só paramos ANTES de começar o próximo.
           if (stopping) break
           await processTenant(tenant)
         }
@@ -68,8 +72,10 @@ async function loop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       })
     }
+    if (stopping) break
     await sleep(config.pollIntervalMs)
   }
+  log('info', 'loop_exited_cleanly')
 }
 
 function sleep(ms: number): Promise<void> {
@@ -77,13 +83,21 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function shutdown(signal: string): Promise<void> {
+  if (stopping) return
   log('info', 'shutdown_signal', { signal })
   stopping = true
+  // Aguarda a iteração atual terminar antes de fechar o pool.
+  try {
+    if (loopFinished) await loopFinished
+  } catch {
+    // ignore
+  }
   try {
     await pool.end()
   } catch {
     // ignore
   }
+  log('info', 'shutdown_complete')
   process.exit(0)
 }
 
@@ -97,4 +111,5 @@ log('info', 'provisioner_starting', {
   portalImage: config.portalImage,
 })
 
-void loop()
+loopFinished = loop()
+void loopFinished
