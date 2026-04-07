@@ -16,17 +16,31 @@ export interface SonicwallConfig {
   guest_service_pass?: string
 }
 
+export type TenantStatus =
+  | 'provisioning'
+  | 'active'
+  | 'inactive'
+  | 'deleted'
+  | 'failed'
+
 export interface Tenant {
   id: string
   name: string
   port: number
-  status: 'active' | 'inactive' | 'deleted'
+  status: TenantStatus
   serials: TenantSerial[]
   sonicwall_config?: Omit<SonicwallConfig, 'password'>
   zenvia_token?: string
+  /** Sender Zenvia (NUNCA retorna o valor real após criação — apenas booleano) */
+  has_zenvia_sender?: boolean
+  /** Mensagem de erro do worker, se status='failed' */
+  provisioning_error?: string | null
+  /** ID do container Docker do tenant (preenchido pelo worker) */
+  container_id?: string | null
   sessions_count?: number
   created_at: string
   updated_at?: string
+  provisioned_at?: string | null
 }
 
 export interface TenantDetail extends Tenant {
@@ -43,6 +57,8 @@ export interface CreateTenantRequest {
   serials: { serial: string; role: 'primary' | 'secondary' }[]
   sonicwall_config: SonicwallConfig
   zenvia_token: string
+  zenvia_sender: string
+  session_duration_minutes?: number
 }
 
 export interface UpdateTenantRequest {
@@ -50,4 +66,6 @@ export interface UpdateTenantRequest {
   serials?: { serial: string; role: 'primary' | 'secondary' }[]
   sonicwall_config?: Partial<SonicwallConfig>
   zenvia_token?: string
+  zenvia_sender?: string
+  session_duration_minutes?: number
 }
