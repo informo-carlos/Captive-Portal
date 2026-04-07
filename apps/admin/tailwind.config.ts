@@ -11,6 +11,11 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        "edge-blue": "#007bbe",
+        "edge-navy": "#021327",
+      },
+      fontFamily: {
+        roboto: ["Roboto", "sans-serif"],
       },
     },
   },

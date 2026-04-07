@@ -23,7 +23,7 @@ export function RequireRole({ minRole, children }: RequireRoleProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
       </div>
     )
   }

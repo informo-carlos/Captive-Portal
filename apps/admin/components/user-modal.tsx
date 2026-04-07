@@ -24,6 +24,9 @@ const EMPTY_FORM: FormData = {
   role: 'viewer',
 }
 
+const inputClass =
+  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#007bbe]'
+
 export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   const isEditing = !!user
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
@@ -106,16 +109,16 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 pt-10 pb-10">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm pt-10 pb-10">
+      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0d1f35] shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {isEditing ? 'Editar usuário' : 'Novo usuário'}
+        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+          <h2 className="text-lg font-semibold text-white">
+            {isEditing ? 'Editar usuario' : 'Novo usuario'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-slate-500 hover:text-slate-300 transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -126,57 +129,53 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Nome *</label>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                fieldError?.field === 'name' ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`${inputClass} ${fieldError?.field === 'name' ? 'border-red-500/50' : ''}`}
               placeholder="Nome completo"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Email *</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setField('email', e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                fieldError?.field === 'email' ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`${inputClass} ${fieldError?.field === 'email' ? 'border-red-500/50' : ''}`}
               placeholder="email@empresa.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Senha {isEditing ? '' : '*'}
-              {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+              {isEditing && <span className="text-xs text-slate-600">(deixe vazio para manter)</span>}
             </label>
             <input
               type="password"
               value={form.password}
               onChange={(e) => setField('password', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
               placeholder={isEditing ? '••••••••' : 'Senha segura'}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Perfil *</label>
             <select
               value={form.role}
               onChange={(e) => setField('role', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             >
               <option value="viewer">Viewer (somente leitura)</option>
               <option value="admin">Admin (gerencia tenants)</option>
@@ -185,20 +184,20 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="flex justify-end gap-3 border-t border-white/5 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar usuário'}
+              {saving ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar usuario'}
             </button>
           </div>
         </form>

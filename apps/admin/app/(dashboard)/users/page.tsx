@@ -8,9 +8,9 @@ import { getUsers, deleteUser, ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
 
 const ROLE_BADGES: Record<string, { label: string; className: string }> = {
-  superadmin: { label: 'Superadmin', className: 'bg-purple-100 text-purple-700' },
-  admin: { label: 'Admin', className: 'bg-blue-100 text-blue-700' },
-  viewer: { label: 'Viewer', className: 'bg-gray-100 text-gray-700' },
+  superadmin: { label: 'Superadmin', className: 'bg-purple-500/15 text-purple-400' },
+  admin: { label: 'Admin', className: 'bg-[#007bbe]/15 text-[#007bbe]' },
+  viewer: { label: 'Viewer', className: 'bg-slate-500/15 text-slate-400' },
 }
 
 export default function UsersPage() {
@@ -32,7 +32,7 @@ export default function UsersPage() {
       if (err instanceof ApiRequestError) {
         setError(err.message)
       } else {
-        setError('Erro ao carregar usuários.')
+        setError('Erro ao carregar usuarios.')
       }
     } finally {
       setLoading(false)
@@ -53,7 +53,7 @@ export default function UsersPage() {
       if (err instanceof ApiRequestError) {
         setError(err.message)
       } else {
-        setError('Erro ao deletar usuário.')
+        setError('Erro ao deletar usuario.')
       }
     } finally {
       setDeletingId(null)
@@ -77,14 +77,14 @@ export default function UsersPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Usuarios Admin</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-white">Usuarios Admin</h1>
+            <p className="mt-1 text-sm text-slate-400">
               Gerencie os usuarios com acesso ao painel.
             </p>
           </div>
           <button
             onClick={() => setModalUser(null)}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] transition-colors"
           >
             Novo usuario
           </button>
@@ -92,39 +92,36 @@ export default function UsersPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
             {error}
           </div>
         )}
 
         {/* Table */}
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+          <table className="min-w-full divide-y divide-white/5">
+            <thead className="bg-white/[0.02]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nome</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Perfil</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Ultimo login</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Acoes</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Nome</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Perfil</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ultimo login</th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Acoes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/5">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
                     <div className="flex items-center justify-center gap-2">
-                      <svg className="h-5 w-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
+                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
                       Carregando...
                     </div>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
                     Nenhum usuario encontrado.
                   </td>
                 </tr>
@@ -134,27 +131,27 @@ export default function UsersPage() {
                   const isSelf = currentUser?.id === u.id
 
                   return (
-                    <tr key={u.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-slate-200">
                         {u.name}
                         {isSelf && (
-                          <span className="ml-2 text-xs text-gray-400">(voce)</span>
+                          <span className="ml-2 text-xs text-slate-500">(voce)</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{u.email}</td>
+                      <td className="px-6 py-4 text-sm text-slate-400">{u.email}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-slate-400">
                         {formatDate(u.last_login)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setModalUser(u)}
-                            className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="rounded px-2 py-1 text-sm text-[#007bbe] hover:bg-[#007bbe]/10 transition-colors"
                           >
                             Editar
                           </button>
@@ -162,17 +159,17 @@ export default function UsersPage() {
                             <>
                               {confirmDeleteId === u.id ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="text-xs text-gray-500">Confirmar?</span>
+                                  <span className="text-xs text-slate-500">Confirmar?</span>
                                   <button
                                     onClick={() => handleDelete(u.id)}
                                     disabled={deletingId === u.id}
-                                    className="rounded px-2 py-1 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                    className="rounded px-2 py-1 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                                   >
                                     {deletingId === u.id ? '...' : 'Sim'}
                                   </button>
                                   <button
                                     onClick={() => setConfirmDeleteId(null)}
-                                    className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+                                    className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-white/5 transition-colors"
                                   >
                                     Nao
                                   </button>
@@ -180,7 +177,7 @@ export default function UsersPage() {
                               ) : (
                                 <button
                                   onClick={() => setConfirmDeleteId(u.id)}
-                                  className="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                  className="rounded px-2 py-1 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                                 >
                                   Deletar
                                 </button>

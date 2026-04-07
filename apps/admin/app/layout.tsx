@@ -3,8 +3,8 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'Captive Portal Admin',
-  description: 'Painel de gestao do Captive Portal Wi-Fi',
+  title: '4Edge — Captive Portal Admin',
+  description: 'Painel de gestao do Captive Portal Wi-Fi — 4Edge Datacenter',
 }
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-screen bg-gray-100 antialiased">
+      <body className="min-h-screen bg-[#0a1629] font-roboto antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

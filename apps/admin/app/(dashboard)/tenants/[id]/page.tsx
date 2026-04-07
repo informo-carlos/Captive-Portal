@@ -110,7 +110,7 @@ export default function TenantDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
       </div>
     )
   }
@@ -118,8 +118,8 @@ export default function TenantDetailPage() {
   if (error && !tenant) {
     return (
       <div className="space-y-4">
-        <Link href="/tenants" className="text-sm text-blue-600 hover:underline">&larr; Voltar para tenants</Link>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <Link href="/tenants" className="text-sm text-[#007bbe] hover:underline">&larr; Voltar para tenants</Link>
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>
       </div>
     )
   }
@@ -128,11 +128,11 @@ export default function TenantDetailPage() {
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      provisioning: 'bg-blue-100 text-blue-800',
-      active: 'bg-green-100 text-green-800',
-      inactive: 'bg-yellow-100 text-yellow-800',
-      failed: 'bg-red-100 text-red-800',
-      deleted: 'bg-red-100 text-red-800',
+      provisioning: 'bg-blue-500/15 text-blue-400',
+      active: 'bg-emerald-500/15 text-emerald-400',
+      inactive: 'bg-amber-500/15 text-amber-400',
+      failed: 'bg-red-500/15 text-red-400',
+      deleted: 'bg-red-500/15 text-red-400',
     }
     const labels: Record<string, string> = {
       provisioning: 'Provisionando...',
@@ -142,9 +142,9 @@ export default function TenantDetailPage() {
       deleted: 'Deletado',
     }
     return (
-      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${colors[status] || 'bg-slate-500/15 text-slate-400'}`}>
         {status === 'provisioning' && (
-          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
         )}
         {labels[status] || status}
       </span>
@@ -156,9 +156,9 @@ export default function TenantDetailPage() {
       {/* Breadcrumb + Actions */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <Link href="/tenants" className="text-sm text-blue-600 hover:underline">&larr; Voltar para tenants</Link>
+          <Link href="/tenants" className="text-sm text-[#007bbe] hover:underline">&larr; Voltar para tenants</Link>
           <div className="mt-2 flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{tenant.name}</h1>
+            <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
             {statusBadge(tenant.status)}
           </div>
         </div>
@@ -169,15 +169,15 @@ export default function TenantDetailPage() {
               disabled={togglingStatus}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
                 tenant.status === 'active'
-                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  ? 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+                  : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
               }`}
             >
               {togglingStatus ? '...' : tenant.status === 'active' ? 'Desativar' : 'Ativar'}
             </button>
             <button
               onClick={() => setModalOpen(true)}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] transition-colors"
             >
               Editar
             </button>
@@ -194,7 +194,7 @@ export default function TenantDetailPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
       )}
 
       {/* Banner de provisioning */}
@@ -239,17 +239,17 @@ export default function TenantDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Stats Cards */}
         <div className="lg:col-span-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Total de sessões</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">{tenant.stats.total_sessions.toLocaleString('pt-BR')}</p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-sm font-medium text-slate-400">Total de sessoes</p>
+            <p className="mt-1 text-3xl font-bold text-white">{tenant.stats.total_sessions.toLocaleString('pt-BR')}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Sessões últimos 30 dias</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">{tenant.stats.sessions_last_30d.toLocaleString('pt-BR')}</p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-sm font-medium text-slate-400">Sessoes ultimos 30 dias</p>
+            <p className="mt-1 text-3xl font-bold text-white">{tenant.stats.sessions_last_30d.toLocaleString('pt-BR')}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Última autenticação</p>
-            <p className="mt-1 text-lg font-semibold text-gray-900">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-sm font-medium text-slate-400">Ultima autenticacao</p>
+            <p className="mt-1 text-lg font-semibold text-white">
               {tenant.stats.last_auth_at
                 ? new Date(tenant.stats.last_auth_at).toLocaleString('pt-BR')
                 : 'Nenhuma'}
@@ -260,9 +260,9 @@ export default function TenantDetailPage() {
         {/* Details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Basic Info */}
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-base font-semibold text-gray-900">Informações gerais</h2>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            <div className="border-b border-white/5 px-6 py-4">
+              <h2 className="text-base font-semibold text-slate-200">Informacoes gerais</h2>
             </div>
             <div className="px-6 py-4 space-y-3">
               <InfoRow label="ID" value={tenant.id} mono />
@@ -276,9 +276,9 @@ export default function TenantDetailPage() {
           </div>
 
           {/* SonicWall Config */}
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-base font-semibold text-gray-900">Configuração SonicWall</h2>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            <div className="border-b border-white/5 px-6 py-4">
+              <h2 className="text-base font-semibold text-slate-200">Configuracao SonicWall</h2>
             </div>
             <div className="px-6 py-4 space-y-3">
               {tenant.sonicwall_config ? (
@@ -288,7 +288,7 @@ export default function TenantDetailPage() {
                     <>
                       <InfoRow label="Host" value={tenant.sonicwall_config.host || '-'} mono />
                       <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
-                      <InfoRow label="Usuário" value={tenant.sonicwall_config.user || '-'} />
+                      <InfoRow label="Usuario" value={tenant.sonicwall_config.user || '-'} />
                       <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
                     </>
                   )}
@@ -300,7 +300,7 @@ export default function TenantDetailPage() {
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-500">Nenhuma configuração disponível.</p>
+                <p className="text-sm text-slate-500">Nenhuma configuracao disponivel.</p>
               )}
             </div>
           </div>
@@ -308,24 +308,24 @@ export default function TenantDetailPage() {
 
         {/* Serials */}
         <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-base font-semibold text-gray-900">Seriais</h2>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            <div className="border-b border-white/5 px-6 py-4">
+              <h2 className="text-base font-semibold text-slate-200">Seriais</h2>
             </div>
             <div className="px-6 py-4">
               {tenant.serials.length === 0 ? (
-                <p className="text-sm text-gray-500">Nenhum serial cadastrado.</p>
+                <p className="text-sm text-slate-500">Nenhum serial cadastrado.</p>
               ) : (
                 <div className="space-y-3">
                   {tenant.serials.map((serial) => (
-                    <div key={serial.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-                      <span className="text-sm font-mono text-gray-900">{serial.serial}</span>
+                    <div key={serial.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+                      <span className="text-sm font-mono text-slate-200">{serial.serial}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         serial.role === 'primary'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-200 text-gray-600'
+                          ? 'bg-[#007bbe]/15 text-[#007bbe]'
+                          : 'bg-slate-500/15 text-slate-400'
                       }`}>
-                        {serial.role === 'primary' ? 'Primário' : 'Secundário'}
+                        {serial.role === 'primary' ? 'Primario' : 'Secundario'}
                       </span>
                     </div>
                   ))}
@@ -347,17 +347,17 @@ export default function TenantDetailPage() {
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Confirmar exclusão</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Tem certeza que deseja deletar o tenant <strong>{tenant.name}</strong>?
-              Esta ação não pode ser desfeita.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0d1f35] p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-white">Confirmar exclusao</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Tem certeza que deseja deletar o tenant <strong className="text-white">{tenant.name}</strong>?
+              Esta acao nao pode ser desfeita.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteConfirm(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/5"
               >
                 Cancelar
               </button>
@@ -379,8 +379,8 @@ export default function TenantDetailPage() {
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
-      <span className={`text-sm text-gray-900 text-right ${mono ? 'font-mono' : ''}`}>{value}</span>
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <span className={`text-sm text-slate-200 text-right ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
   )
 }

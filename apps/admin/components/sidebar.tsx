@@ -52,9 +52,14 @@ export function Sidebar() {
   const { hasRole } = useAuth()
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-white">
-      <div className="flex h-16 items-center border-b border-gray-200 px-6">
-        <h2 className="text-lg font-bold text-gray-900">Captive Portal</h2>
+    <aside className="flex h-screen w-64 flex-col border-r border-white/5 bg-[#021327]">
+      <div className="flex h-16 items-center border-b border-white/5 px-6">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://4edge.cloud/wp-content/uploads/2021/03/4edge-logo-white.png"
+          alt="4Edge"
+          className="h-6 opacity-90"
+        />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -68,10 +73,10 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-[#007bbe]/15 text-[#007bbe]'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
               }`}
             >
               {ICONS[item.icon]}
@@ -80,6 +85,10 @@ export function Sidebar() {
           )
         })}
       </nav>
+
+      <div className="border-t border-white/5 px-6 py-4">
+        <p className="text-[10px] uppercase tracking-widest text-slate-600">Captive Portal</p>
+      </div>
     </aside>
   )
 }

@@ -77,18 +77,18 @@ export default function DashboardPage() {
     : []
 
   const cardColors: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    blue: 'border-[#007bbe]/30 bg-[#007bbe]/10 text-[#007bbe]',
+    green: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+    purple: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
+    amber: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
   }
 
   return (
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-400">
           Resumo geral de autenticacoes Wi-Fi.
         </p>
       </div>
@@ -96,30 +96,30 @@ export default function DashboardPage() {
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">De</label>
+          <label className="block text-sm font-medium text-slate-400 mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ate</label>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
           />
         </div>
         {isSuperadmin && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -132,7 +132,7 @@ export default function DashboardPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
           {error}
         </div>
       )}
@@ -140,10 +140,7 @@ export default function DashboardPage() {
       {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <svg className="h-6 w-6 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
         </div>
       ) : summary ? (
         <>
@@ -152,7 +149,7 @@ export default function DashboardPage() {
             {cards.map((card) => (
               <div
                 key={card.label}
-                className={`rounded-lg border p-5 ${cardColors[card.color]}`}
+                className={`rounded-xl border p-5 ${cardColors[card.color]}`}
               >
                 <p className="text-sm font-medium opacity-80">{card.label}</p>
                 <p className="mt-1 text-3xl font-bold">{card.value}</p>
@@ -161,14 +158,14 @@ export default function DashboardPage() {
           </div>
 
           {/* Chart */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold text-gray-900 uppercase tracking-wider">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
+            <h2 className="mb-4 text-sm font-semibold text-slate-300 uppercase tracking-wider">
               Sessoes por dia
             </h2>
             {summary.by_day.length > 0 ? (
               <SessionsChart data={summary.by_day} />
             ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
+              <p className="py-8 text-center text-sm text-slate-500">
                 Nenhum dado para o periodo selecionado.
               </p>
             )}
@@ -176,26 +173,26 @@ export default function DashboardPage() {
 
           {/* By Tenant Table (superadmin) */}
           {isSuperadmin && summary.by_tenant.length > 0 && (
-            <div className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+              <div className="px-6 py-4 border-b border-white/5">
+                <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
                   Por tenant
                 </h2>
               </div>
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-white/5">
+                <thead className="bg-white/[0.02]">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tenant</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Sessoes</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Usuarios unicos</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Tenant</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Sessoes</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Usuarios unicos</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-white/5">
                   {summary.by_tenant.map((t) => (
-                    <tr key={t.tenant_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{t.tenant_name}</td>
-                      <td className="px-6 py-3 text-right text-sm text-gray-500">{t.sessions.toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-3 text-right text-sm text-gray-500">{t.unique_phones.toLocaleString('pt-BR')}</td>
+                    <tr key={t.tenant_id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-3 text-sm font-medium text-slate-200">{t.tenant_name}</td>
+                      <td className="px-6 py-3 text-right text-sm text-slate-400">{t.sessions.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-3 text-right text-sm text-slate-400">{t.unique_phones.toLocaleString('pt-BR')}</td>
                     </tr>
                   ))}
                 </tbody>

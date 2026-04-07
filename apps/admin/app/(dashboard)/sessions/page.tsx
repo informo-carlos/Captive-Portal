@@ -78,8 +78,8 @@ export default function SessionsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Sessoes Wi-Fi</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-white">Sessoes Wi-Fi</h1>
+        <p className="mt-1 text-sm text-slate-400">
           Historico de autenticacoes no portal captivo.
         </p>
       </div>
@@ -88,11 +88,11 @@ export default function SessionsPage() {
       <div className="mb-6 flex flex-wrap items-end gap-4">
         {isSuperadmin && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => { setTenantId(e.target.value); setPage(1) }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -102,37 +102,37 @@ export default function SessionsPage() {
           </div>
         )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">De</label>
+          <label className="block text-sm font-medium text-slate-400 mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => { setFrom(e.target.value); setPage(1) }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ate</label>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => { setTo(e.target.value); setPage(1) }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Telefone</label>
           <input
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setAppliedPhone(phone); setPage(1) } }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
             placeholder="Digite so numeros (ex: 11999994321)"
           />
         </div>
         <button
           onClick={() => { setAppliedPhone(phone); setPage(1) }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] transition-colors"
         >
           Filtrar
         </button>
@@ -140,52 +140,49 @@ export default function SessionsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+        <table className="min-w-full divide-y divide-white/5">
+          <thead className="bg-white/[0.02]">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Telefone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">MAC</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">IP</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tenant</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Autenticado em</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Expira em</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Telefone</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">MAC</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">IP</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Tenant</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Autenticado em</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Expira em</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-white/5">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
                   <div className="flex items-center justify-center gap-2">
-                    <svg className="h-5 w-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
+                    <div className="h-5 w-5 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
                     Carregando...
                   </div>
                 </td>
               </tr>
             ) : sessions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
                   Nenhuma sessao encontrada.
                 </td>
               </tr>
             ) : (
               sessions.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 font-mono">{s.phone_masked}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.mac_address}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.ip_address}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{s.tenant.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(s.auth_at)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(s.expires_at)}</td>
+                <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-200 font-mono">{s.phone_masked}</td>
+                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">{s.mac_address}</td>
+                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">{s.ip_address}</td>
+                  <td className="px-6 py-4 text-sm text-slate-400">{s.tenant.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-400">{formatDate(s.auth_at)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-400">{formatDate(s.expires_at)}</td>
                 </tr>
               ))
             )}
@@ -196,21 +193,21 @@ export default function SessionsPage() {
       {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-500">
             Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={pagination.page <= 1}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50 transition-colors"
             >
               Anterior
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
               disabled={pagination.page >= pagination.pages}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50 transition-colors"
             >
               Proxima
             </button>
