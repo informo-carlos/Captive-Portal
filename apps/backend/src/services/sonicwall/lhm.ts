@@ -78,9 +78,21 @@ export async function releaseAccessLhm(
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
-  const mgmtBaseUrl = lhm['mgmtBaseUrl']
+  // Preferimos clientRedirectUrl sobre mgmtBaseUrl: o externalGuestLogin.cgi
+  // vive na porta do *portal do usuário* (ex: :444), não na porta de
+  // gerência (:4043). Em firmware TZ 7.x a porta de mgmt frequentemente
+  // não responde ao endpoint de auth de guest. mgmtBaseUrl é fallback.
+  const mgmtBaseUrl = lhm['clientRedirectUrl'] || lhm['mgmtBaseUrl']
+  logger.info(
+    {
+      hasClientRedirect: !!lhm['clientRedirectUrl'],
+      hasMgmtBase: !!lhm['mgmtBaseUrl'],
+      chosen: lhm['clientRedirectUrl'] ? 'clientRedirectUrl' : 'mgmtBaseUrl',
+    },
+    'lhm_base_url_chosen',
+  )
 
-  // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
+  // Sem sessionId+baseUrl não há LHM possível: usuário chegou no portal
   // sem passar pelo SonicWall (ex: digitou o IP direto).
   if (!sessionId || !mgmtBaseUrl) {
     logger.error(
