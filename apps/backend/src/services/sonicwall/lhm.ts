@@ -129,6 +129,8 @@ export async function releaseAccessLhm(
       lhmKeys: Object.keys(lhm),
       sessionLifetimeSec,
       idleTimeoutSec,
+      // Útil pra debug end-to-end. sessId é efêmero e mgmtBaseUrl é IP interno.
+      redirectUrl,
     },
     'lhm_redirect_built',
   )
