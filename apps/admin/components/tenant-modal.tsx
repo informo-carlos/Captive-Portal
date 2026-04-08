@@ -90,22 +90,25 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
       if (isNaN(port) || port < 29000 || port > 29999) return 'Porta deve estar entre 29000 e 29999.'
     }
     if (!form.serial_primary.trim()) return 'Serial primário é obrigatório.'
-    if (!isEditing) {
-      if (!form.sw_host.trim()) return 'Host SonicWall é obrigatório.'
+
+    // Campos do SonicWall só são obrigatórios em modo REST. No LHM o backend
+    // não fala com o SonicWall — quem fala é o navegador do usuário, com
+    // base nos parâmetros que o próprio SW envia no redirect inicial.
+    if (form.sw_mode === 'rest') {
+      if (form.sw_port.trim()) {
+        const p = parseInt(form.sw_port)
+        if (isNaN(p) || p < 1 || p > 65535) return 'Porta de management deve estar entre 1 e 65535.'
+      }
+      if (!isEditing) {
+        if (!form.sw_host.trim()) return 'Host SonicWall é obrigatório no modo REST.'
+        if (!form.sw_user.trim()) return 'Usuário SonicWall é obrigatório no modo REST.'
+        if (!form.sw_password.trim()) return 'Senha SonicWall é obrigatória no modo REST.'
+      }
     }
-    if (form.sw_port.trim()) {
-      const p = parseInt(form.sw_port)
-      if (isNaN(p) || p < 1 || p > 65535) return 'Porta SonicWall deve estar entre 1 e 65535.'
-    }
+
     if (!isEditing) {
-      if (!form.sw_user.trim()) return 'Usuário SonicWall é obrigatório.'
-      if (!form.sw_password.trim()) return 'Senha SonicWall é obrigatória.'
       if (!form.zenvia_token.trim()) return 'Token Zenvia é obrigatório.'
       if (!form.zenvia_sender.trim()) return 'Sender Zenvia é obrigatório.'
-    }
-    if (form.sw_mode === 'lhm') {
-      if (!form.sw_guest_user.trim()) return 'Usuário guest service é obrigatório para modo LHM.'
-      if (!isEditing && !form.sw_guest_pass.trim()) return 'Senha guest service é obrigatória para modo LHM.'
     }
     return null
   }
@@ -129,42 +132,47 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           name: form.name.trim(),
           serials: buildSerials(),
         }
-        if (form.sw_host || form.sw_user || form.sw_password) {
-          data.sonicwall_config = {}
+        // Sempre envia o sonicwall_config no edit (mesmo que só pra trocar de
+        // modo). O backend faz merge com o que já existe no banco.
+        data.sonicwall_config = { mode: form.sw_mode }
+        if (form.sw_mode === 'rest') {
           if (form.sw_host.trim()) data.sonicwall_config.host = form.sw_host.trim()
           if (form.sw_port.trim()) data.sonicwall_config.port = parseInt(form.sw_port)
           if (form.sw_user.trim()) data.sonicwall_config.user = form.sw_user.trim()
           if (form.sw_password.trim()) data.sonicwall_config.password = form.sw_password.trim()
           data.sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
-          data.sonicwall_config.mode = form.sw_mode
-          if (form.sw_mode === 'lhm') {
-            data.sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
-            if (form.sw_guest_user.trim()) data.sonicwall_config.guest_service_user = form.sw_guest_user.trim()
-            if (form.sw_guest_pass.trim()) data.sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
-          }
+        } else {
+          // LHM: porta opcional + guest service só se preenchido
+          if (form.sw_lhm_port.trim()) data.sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
+          if (form.sw_guest_user.trim()) data.sonicwall_config.guest_service_user = form.sw_guest_user.trim()
+          if (form.sw_guest_pass.trim()) data.sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
         }
         if (form.zenvia_token.trim()) data.zenvia_token = form.zenvia_token.trim()
         if (form.zenvia_sender.trim()) data.zenvia_sender = form.zenvia_sender.trim()
 
         await updateTenant(tenant!.id, data)
       } else {
+        const sonicwall_config: CreateTenantRequest['sonicwall_config'] = {
+          mode: form.sw_mode,
+        }
+        if (form.sw_mode === 'rest') {
+          sonicwall_config.host = form.sw_host.trim()
+          if (form.sw_port.trim()) sonicwall_config.port = parseInt(form.sw_port)
+          sonicwall_config.user = form.sw_user.trim()
+          sonicwall_config.password = form.sw_password.trim()
+          sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
+        } else {
+          // LHM: nada além do modo é obrigatório. Guest service só se preenchido.
+          if (form.sw_lhm_port.trim()) sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
+          if (form.sw_guest_user.trim()) sonicwall_config.guest_service_user = form.sw_guest_user.trim()
+          if (form.sw_guest_pass.trim()) sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
+        }
+
         const data: CreateTenantRequest = {
           name: form.name.trim(),
           port: parseInt(form.port),
           serials: buildSerials(),
-          sonicwall_config: {
-            host: form.sw_host.trim(),
-            ...(form.sw_port.trim() && { port: parseInt(form.sw_port) }),
-            user: form.sw_user.trim(),
-            password: form.sw_password.trim(),
-            firmware: parseInt(form.sw_firmware) || 7,
-            mode: form.sw_mode,
-            ...(form.sw_mode === 'lhm' && {
-              lhm_port: parseInt(form.sw_lhm_port) || 4043,
-              guest_service_user: form.sw_guest_user.trim(),
-              guest_service_pass: form.sw_guest_pass.trim(),
-            }),
-          },
+          sonicwall_config,
           zenvia_token: form.zenvia_token.trim(),
           zenvia_sender: form.zenvia_sender.trim(),
         }
@@ -292,113 +300,137 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           {/* SonicWall Config */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Configuração SonicWall</h3>
+
+            {/* Modo — sempre visível, dita o que aparece embaixo */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Host {!isEditing && '*'}</label>
-                <input
-                  type="text"
-                  value={form.sw_host}
-                  onChange={(e) => setField('sw_host', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="192.168.1.1"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Porta de management <span className="text-xs text-gray-400">(default 443)</span>
-                </label>
-                <input
-                  type="number"
-                  value={form.sw_port}
-                  onChange={(e) => setField('sw_port', e.target.value)}
-                  min={1}
-                  max={65535}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="4040"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Usuário {!isEditing && '*'}</label>
-                <input
-                  type="text"
-                  value={form.sw_user}
-                  onChange={(e) => setField('sw_user', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="admin"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Senha {!isEditing && '*'}
-                  {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
-                </label>
-                <input
-                  type="password"
-                  value={form.sw_password}
-                  onChange={(e) => setField('sw_password', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder={isEditing ? '••••••••' : 'Senha do SonicWall'}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Firmware</label>
-                <select
-                  value={form.sw_firmware}
-                  onChange={(e) => setField('sw_firmware', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="6">Gen 6</option>
-                  <option value="7">Gen 7</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Modo</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Modo de integração</label>
                 <select
                   value={form.sw_mode}
                   onChange={(e) => setField('sw_mode', e.target.value as 'rest' | 'lhm')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="rest">REST API</option>
-                  <option value="lhm">LHM</option>
+                  <option value="lhm">LHM (External Guest Auth)</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.sw_mode === 'rest'
+                    ? 'A VPS fala diretamente com a API REST do SonicWall — exige host e credenciais.'
+                    : 'O navegador do usuário fala com o SonicWall (External Guest Auth). A VPS não precisa de host nem credenciais.'}
+                </p>
               </div>
             </div>
 
-            {/* LHM fields */}
-            {form.sw_mode === 'lhm' && (
-              <div className="grid grid-cols-3 gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            {/* Campos REST — só aparecem em modo REST */}
+            {form.sw_mode === 'rest' && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Porta LHM</label>
-                  <input
-                    type="number"
-                    value={form.sw_lhm_port}
-                    onChange={(e) => setField('sw_lhm_port', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="4043"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuário guest *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Host {!isEditing && '*'}</label>
                   <input
                     type="text"
-                    value={form.sw_guest_user}
-                    onChange={(e) => setField('sw_guest_user', e.target.value)}
+                    value={form.sw_host}
+                    onChange={(e) => setField('sw_host', e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="guest_service"
+                    placeholder="192.168.1.1"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Senha guest {!isEditing && '*'}
+                    Porta de management <span className="text-xs text-gray-400">(default 443)</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={form.sw_port}
+                    onChange={(e) => setField('sw_port', e.target.value)}
+                    min={1}
+                    max={65535}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="4040"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuário {!isEditing && '*'}</label>
+                  <input
+                    type="text"
+                    value={form.sw_user}
+                    onChange={(e) => setField('sw_user', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="admin"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha {!isEditing && '*'}
                     {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
                   </label>
                   <input
                     type="password"
-                    value={form.sw_guest_pass}
-                    onChange={(e) => setField('sw_guest_pass', e.target.value)}
+                    value={form.sw_password}
+                    onChange={(e) => setField('sw_password', e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder={isEditing ? '••••••••' : 'Senha guest'}
+                    placeholder={isEditing ? '••••••••' : 'Senha do SonicWall'}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Firmware</label>
+                  <select
+                    value={form.sw_firmware}
+                    onChange={(e) => setField('sw_firmware', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="6">Gen 6</option>
+                    <option value="7">Gen 7</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Campos LHM — opcionais, só aparecem em modo LHM */}
+            {form.sw_mode === 'lhm' && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-3 text-xs text-amber-800">
+                  Em LHM o SonicWall envia tudo o que precisamos no redirect inicial
+                  (sessionId, mgmtBaseUrl, ufi, mac, ip). Os campos abaixo são todos
+                  opcionais — só preencha guest user/senha se o seu SonicWall estiver
+                  configurado pra exigir autenticação no callback do externalGuestLogin.cgi.
+                </p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Porta LHM <span className="text-xs text-gray-400">(opcional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={form.sw_lhm_port}
+                      onChange={(e) => setField('sw_lhm_port', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="4043"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Usuário guest <span className="text-xs text-gray-400">(opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.sw_guest_user}
+                      onChange={(e) => setField('sw_guest_user', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="(deixe vazio se não exigido)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Senha guest <span className="text-xs text-gray-400">(opcional)</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={form.sw_guest_pass}
+                      onChange={(e) => setField('sw_guest_pass', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder={isEditing ? '••••••••' : '(deixe vazio se não exigido)'}
+                    />
+                  </div>
                 </div>
               </div>
             )}

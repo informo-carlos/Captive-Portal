@@ -17,7 +17,9 @@ export default function PhonePageWrapper() {
 function PhonePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const serial = searchParams.get('serial') || ''
+  // SonicWall TZ570 manda o serial como `ufi` (Unique Firewall Identifier).
+  // Aceitamos ambos os nomes pra cobrir diferenças entre firmwares.
+  const serial = searchParams.get('serial') || searchParams.get('ufi') || ''
   const mac = searchParams.get('mac') || ''
   const ip = searchParams.get('ip') || ''
   // Captura quaisquer params extras injetados pelo SonicWall no modo LHM

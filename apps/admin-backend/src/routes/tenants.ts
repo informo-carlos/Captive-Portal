@@ -7,22 +7,38 @@ interface TenantSerial {
 }
 
 interface SonicwallConfig {
-  host: string
-  port?: number
-  user: string
-  password: string
-  firmware?: number
   mode: 'rest' | 'lhm'
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  firmware?: number
   lhm_port?: number
   guest_service_user?: string
   guest_service_pass?: string
 }
 
-// Validação LHM: campos obrigatórios quando mode = 'lhm'
-function validateLhmConfig(config: { mode?: string; guest_service_user?: string; guest_service_pass?: string }): string | null {
-  if (config.mode === 'lhm') {
-    if (!config.guest_service_user || !config.guest_service_pass) {
-      return 'Campos guest_service_user e guest_service_pass são obrigatórios quando mode = "lhm".'
+/**
+ * Valida que os campos exigidos pelo modo escolhido estão presentes.
+ *
+ * - mode='rest': a VPS chama a API REST do SonicWall, então host/user/password
+ *   são obrigatórios.
+ * - mode='lhm': quem fala com o SonicWall é o navegador do usuário (External
+ *   Guest Authentication). A VPS não precisa de credenciais nem do host —
+ *   tudo vem do `mgmtBaseUrl` que o próprio SW envia no redirect inicial.
+ *   guest_service_user/pass continuam OPCIONAIS (só usar se o SW estiver
+ *   configurado pra exigir auth no callback do externalGuestLogin.cgi).
+ */
+function validateModeRequirements(
+  config: { mode?: string; host?: string; user?: string; password?: string },
+): string | null {
+  if (config.mode === 'rest') {
+    const missing: string[] = []
+    if (!config.host) missing.push('host')
+    if (!config.user) missing.push('user')
+    if (!config.password) missing.push('password')
+    if (missing.length > 0) {
+      return `Campos ${missing.join(', ')} são obrigatórios quando mode = "rest".`
     }
   }
   return null
@@ -180,14 +196,17 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           },
           sonicwall_config: {
             type: 'object',
-            required: ['host', 'user', 'password', 'mode'],
+            // Apenas `mode` é universalmente obrigatório. Os demais campos são
+            // exigidos conforme o modo, e a validação acontece no handler em
+            // validateModeRequirements (ver acima).
+            required: ['mode'],
             properties: {
-              host: { type: 'string', minLength: 1 },
-              port: { type: 'integer', minimum: 1, maximum: 65535 },
-              user: { type: 'string', minLength: 1 },
-              password: { type: 'string', minLength: 1 },
-              firmware: { type: 'integer' },
               mode: { type: 'string', enum: ['rest', 'lhm'] },
+              host: { type: 'string' },
+              port: { type: 'integer', minimum: 1, maximum: 65535 },
+              user: { type: 'string' },
+              password: { type: 'string' },
+              firmware: { type: 'integer' },
               lhm_port: { type: 'integer' },
               guest_service_user: { type: 'string' },
               guest_service_pass: { type: 'string' },
@@ -210,12 +229,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       session_duration_minutes?: number
     }
 
-    // Validação LHM
-    const lhmError = validateLhmConfig(body.sonicwall_config)
-    if (lhmError) {
+    // Valida campos obrigatórios conforme o modo (rest exige host/user/pass).
+    const modeError = validateModeRequirements(body.sonicwall_config)
+    if (modeError) {
       return reply.code(422).send({
-        error: 'missing_lhm_fields',
-        message: lhmError,
+        error: 'missing_mode_fields',
+        message: modeError,
         code: 422,
       })
     }
@@ -464,13 +483,16 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         const currentConfig = decryptConfigFromDb(existing.rows[0], encryptionKey) || {}
         const newConfig = { ...currentConfig, ...(body['sonicwall_config'] as Record<string, unknown>) }
 
-        // Validação LHM após merge (ponto crítico: rest→lhm sem guest_service)
-        const lhmError = validateLhmConfig(newConfig as { mode?: string; guest_service_user?: string; guest_service_pass?: string })
-        if (lhmError) {
+        // Valida o resultado do merge (ponto crítico: troca de modo lhm→rest
+        // que precise de host/user/password ainda não preenchidos).
+        const modeError = validateModeRequirements(
+          newConfig as { mode?: string; host?: string; user?: string; password?: string },
+        )
+        if (modeError) {
           await client.query('ROLLBACK')
           return reply.code(422).send({
-            error: 'missing_lhm_fields',
-            message: lhmError,
+            error: 'missing_mode_fields',
+            message: modeError,
             code: 422,
           })
         }

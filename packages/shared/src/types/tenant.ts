@@ -5,12 +5,16 @@ export interface TenantSerial {
 }
 
 export interface SonicwallConfig {
-  host: string
+  /** Modo de integração — define quais campos são obrigatórios. */
+  mode: 'rest' | 'lhm'
+  /** Obrigatório só em mode='rest' (a VPS chama a API REST do SonicWall). */
+  host?: string
   port?: number
-  user: string
+  /** Obrigatório só em mode='rest'. */
+  user?: string
   password?: string
   firmware?: number
-  mode?: 'rest' | 'lhm'
+  /** Opcional em LHM — só usado se o SW exigir auth no externalGuestLogin.cgi. */
   lhm_port?: number
   guest_service_user?: string
   guest_service_pass?: string

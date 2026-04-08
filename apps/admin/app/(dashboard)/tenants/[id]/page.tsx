@@ -283,15 +283,19 @@ export default function TenantDetailPage() {
             <div className="px-6 py-4 space-y-3">
               {tenant.sonicwall_config ? (
                 <>
-                  <InfoRow label="Host" value={tenant.sonicwall_config.host} mono />
-                  <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
-                  <InfoRow label="Usuário" value={tenant.sonicwall_config.user} />
-                  <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
-                  <InfoRow label="Modo" value={tenant.sonicwall_config.mode === 'lhm' ? 'LHM' : 'REST API'} />
+                  <InfoRow label="Modo" value={tenant.sonicwall_config.mode === 'lhm' ? 'LHM (External Guest Auth)' : 'REST API'} />
+                  {tenant.sonicwall_config.mode === 'rest' && (
+                    <>
+                      <InfoRow label="Host" value={tenant.sonicwall_config.host || '-'} mono />
+                      <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
+                      <InfoRow label="Usuário" value={tenant.sonicwall_config.user || '-'} />
+                      <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
+                    </>
+                  )}
                   {tenant.sonicwall_config.mode === 'lhm' && (
                     <>
                       <InfoRow label="Porta LHM" value={String(tenant.sonicwall_config.lhm_port || 4043)} mono />
-                      <InfoRow label="Guest user" value={tenant.sonicwall_config.guest_service_user || '-'} />
+                      <InfoRow label="Guest user" value={tenant.sonicwall_config.guest_service_user || '(não configurado)'} />
                     </>
                   )}
                 </>
