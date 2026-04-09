@@ -99,56 +99,43 @@ function OtpPage() {
       // original. Se pelo menos um POST funcionou, o MAC foi autorizado
       // e o redirect passa pelo SW sem reintercepção.
       if (result.lhm_submit) {
-        const { urls, body, redirectTo } = result.lhm_submit
-        const formBody = new URLSearchParams(body as Record<string, string>)
-        // Timeout curto por URL (4s) — mgmtBaseUrl costuma ser inalcançável
-        // da WGUEST e trava o fetch até o timeout do browser. Usamos
-        // AbortController pra não segurar o botão "Verificando...".
-        const attempts = await Promise.all(
-          urls.map(async (url) => {
-            const ctrl = new AbortController()
-            const t = setTimeout(() => ctrl.abort(), 4000)
-            const started = Date.now()
-            try {
-              await fetch(url, {
-                method: 'POST',
-                mode: 'no-cors',
-                credentials: 'omit',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formBody,
-                signal: ctrl.signal,
-              })
-              return { url, ok: true, ms: Date.now() - started }
-            } catch (e) {
-              return {
-                url,
-                ok: false,
-                ms: Date.now() - started,
-                err: (e as Error).name + ':' + (e as Error).message,
-              }
-            } finally {
-              clearTimeout(t)
-            }
-          }),
-        )
-        // Log de diagnóstico pro backend antes de redirecionar — assim a
-        // gente vê nos logs do portal quais URLs o browser do cliente
-        // conseguiu atingir. Fire-and-forget, com keepalive pra sobreviver
-        // ao unload da página.
+        const { urls, body } = result.lhm_submit
+        // Estratégia diagnóstica: top-level form POST pro endpoint
+        // primário (primeira URL HTTP do clientRedirectUrl). O browser
+        // navega pro SW e exibe exatamente o que ele devolveu — se for
+        // XML de sucesso, 404, ou qualquer outra coisa, a gente enxerga
+        // na tela. Isso é o único jeito de sair do opaque response.
+        const primary =
+          urls.find((u) => u.startsWith('http://') && u.endsWith('/externalGuestLogin.cgi')) ??
+          urls[0]
+        // Reporta o que vamos fazer pro backend antes de navegar
         try {
           await fetch(
             `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ attempts, redirectTo }),
+              body: JSON.stringify({ strategy: 'top-level-form', primary }),
               keepalive: true,
             },
           )
         } catch {
           /* ignore */
         }
-        window.location.href = redirectTo
+        // Monta form hidden e submete top-level
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.action = primary
+        form.style.display = 'none'
+        for (const [k, v] of Object.entries(body as Record<string, string>)) {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = k
+          input.value = v
+          form.appendChild(input)
+        }
+        document.body.appendChild(form)
+        form.submit()
         return
       }
       router.push(`/success?serial=${serial}`)
