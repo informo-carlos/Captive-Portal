@@ -30,8 +30,45 @@
   to { opacity: 1; }
 }
 
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 229, 195, 0.1); }
+  50% { box-shadow: 0 0 40px rgba(0, 229, 195, 0.2); }
+}
+
 .animate-float { animation: float 6s ease-in-out infinite; }
 .animate-float-reverse { animation: float-reverse 7s ease-in-out infinite; }
 .animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
 .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
 .animate-fade-in { animation: fade-in 0.8s ease-out forwards; }
+.animate-glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Select dropdown dark styling */
+select option {
+  background: #0d1219;
+  color: #e2e8f0;
+}

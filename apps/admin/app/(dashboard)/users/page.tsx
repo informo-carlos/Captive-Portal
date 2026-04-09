@@ -8,9 +8,9 @@ import { getUsers, deleteUser, ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
 
 const ROLE_BADGES: Record<string, { label: string; className: string }> = {
-  superadmin: { label: 'Superadmin', className: 'bg-purple-500/15 text-purple-400' },
-  admin: { label: 'Admin', className: 'bg-[#007bbe]/15 text-[#007bbe]' },
-  viewer: { label: 'Viewer', className: 'bg-slate-500/15 text-slate-400' },
+  superadmin: { label: 'Superadmin', className: 'bg-purple-500/10 text-purple-400 border border-purple-500/20' },
+  admin: { label: 'Admin', className: 'bg-edge-cyan/10 text-edge-cyan border border-edge-cyan/20' },
+  viewer: { label: 'Viewer', className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20' },
 }
 
 export default function UsersPage() {
@@ -78,13 +78,13 @@ export default function UsersPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Usuarios Admin</h1>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-slate-500">
               Gerencie os usuarios com acesso ao painel.
             </p>
           </div>
           <button
             onClick={() => setModalUser(null)}
-            className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] transition-colors"
+            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
           >
             Novo usuario
           </button>
@@ -98,23 +98,23 @@ export default function UsersPage() {
         )}
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
-          <table className="min-w-full divide-y divide-white/5">
+        <div className="overflow-hidden rounded-xl glass-card">
+          <table className="min-w-full divide-y divide-white/[0.06]">
             <thead className="bg-white/[0.02]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Nome</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Perfil</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ultimo login</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Acoes</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Nome</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Email</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Perfil</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Ultimo login</th>
+                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Acoes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/[0.06]">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
+                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
                       Carregando...
                     </div>
                   </td>
@@ -135,12 +135,12 @@ export default function UsersPage() {
                       <td className="px-6 py-4 text-sm font-medium text-slate-200">
                         {u.name}
                         {isSelf && (
-                          <span className="ml-2 text-xs text-slate-500">(voce)</span>
+                          <span className="ml-2 text-[10px] text-slate-500">(voce)</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-400">{u.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${badge.className}`}>
                           {badge.label}
                         </span>
                       </td>
@@ -151,7 +151,7 @@ export default function UsersPage() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setModalUser(u)}
-                            className="rounded px-2 py-1 text-sm text-[#007bbe] hover:bg-[#007bbe]/10 transition-colors"
+                            className="rounded-md px-2 py-1 text-xs text-edge-cyan hover:bg-edge-cyan/10 transition-colors"
                           >
                             Editar
                           </button>
@@ -159,17 +159,17 @@ export default function UsersPage() {
                             <>
                               {confirmDeleteId === u.id ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="text-xs text-slate-500">Confirmar?</span>
+                                  <span className="text-[10px] text-slate-500">Confirmar?</span>
                                   <button
                                     onClick={() => handleDelete(u.id)}
                                     disabled={deletingId === u.id}
-                                    className="rounded px-2 py-1 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                                    className="rounded-md px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                                   >
                                     {deletingId === u.id ? '...' : 'Sim'}
                                   </button>
                                   <button
                                     onClick={() => setConfirmDeleteId(null)}
-                                    className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-white/5 transition-colors"
+                                    className="rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-white/[0.04] transition-colors"
                                   >
                                     Nao
                                   </button>
@@ -177,7 +177,7 @@ export default function UsersPage() {
                               ) : (
                                 <button
                                   onClick={() => setConfirmDeleteId(u.id)}
-                                  className="rounded px-2 py-1 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                                  className="rounded-md px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
                                 >
                                   Deletar
                                 </button>

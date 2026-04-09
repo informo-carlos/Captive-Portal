@@ -25,7 +25,7 @@ const EMPTY_FORM: FormData = {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#007bbe]'
+  'w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-edge-cyan/40'
 
 export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   const isEditing = !!user
@@ -109,10 +109,10 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm pt-10 pb-10">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0d1f35] shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm pt-10 pb-10">
+      <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#0d1219] shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
           <h2 className="text-lg font-semibold text-white">
             {isEditing ? 'Editar usuario' : 'Novo usuario'}
           </h2>
@@ -135,7 +135,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Nome *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Nome *</label>
             <input
               type="text"
               value={form.name}
@@ -146,7 +146,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Email *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Email *</label>
             <input
               type="email"
               value={form.email}
@@ -157,9 +157,9 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
               Senha {isEditing ? '' : '*'}
-              {isEditing && <span className="text-xs text-slate-600">(deixe vazio para manter)</span>}
+              {isEditing && <span className="text-slate-600 normal-case">(deixe vazio para manter)</span>}
             </label>
             <input
               type="password"
@@ -171,7 +171,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Perfil *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Perfil *</label>
             <select
               value={form.role}
               onChange={(e) => setField('role', e.target.value)}
@@ -184,18 +184,18 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-white/5 pt-4">
+          <div className="flex justify-end gap-3 border-t border-white/[0.06] pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 transition-colors"
+              className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.04] transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar usuario'}
             </button>

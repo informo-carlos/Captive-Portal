@@ -69,57 +69,50 @@ export default function DashboardPage() {
 
   const cards = summary
     ? [
-        { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR'), color: 'blue' },
-        { label: 'Usuarios unicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), color: 'green' },
-        { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR'), color: 'purple' },
-        { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%`, color: 'amber' },
+        { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR'), icon: 'sessions' },
+        { label: 'Usuarios unicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), icon: 'users' },
+        { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR'), icon: 'attempts' },
+        { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%`, icon: 'rate' },
       ]
     : []
-
-  const cardColors: Record<string, string> = {
-    blue: 'border-[#007bbe]/30 bg-[#007bbe]/10 text-[#007bbe]',
-    green: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-    purple: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
-    amber: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  }
 
   return (
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Resumo geral de autenticacoes Wi-Fi.
+        <h1 className="text-2xl font-bold text-white">System Overview</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Telemetria e metricas de autenticacao Wi-Fi.
         </p>
       </div>
 
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-400 mb-1">De</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-400 mb-1">Ate</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         {isSuperadmin && (
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Tenant</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -140,7 +133,7 @@ export default function DashboardPage() {
       {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
         </div>
       ) : summary ? (
         <>
@@ -149,17 +142,18 @@ export default function DashboardPage() {
             {cards.map((card) => (
               <div
                 key={card.label}
-                className={`rounded-xl border p-5 ${cardColors[card.color]}`}
+                className="glass-card rounded-xl p-5"
               >
-                <p className="text-sm font-medium opacity-80">{card.label}</p>
-                <p className="mt-1 text-3xl font-bold">{card.value}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{card.label}</p>
+                <p className="mt-2 text-3xl font-bold text-white">{card.value}</p>
+                <div className="mt-3 h-px bg-gradient-to-r from-edge-cyan/30 to-transparent" />
               </div>
             ))}
           </div>
 
           {/* Chart */}
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
-            <h2 className="mb-4 text-sm font-semibold text-slate-300 uppercase tracking-wider">
+          <div className="glass-card rounded-xl p-6">
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               Sessoes por dia
             </h2>
             {summary.by_day.length > 0 ? (
@@ -173,21 +167,21 @@ export default function DashboardPage() {
 
           {/* By Tenant Table (superadmin) */}
           {isSuperadmin && summary.by_tenant.length > 0 && (
-            <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
-              <div className="px-6 py-4 border-b border-white/5">
-                <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+            <div className="mt-6 overflow-hidden rounded-xl glass-card">
+              <div className="px-6 py-4 border-b border-white/[0.06]">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   Por tenant
                 </h2>
               </div>
-              <table className="min-w-full divide-y divide-white/5">
+              <table className="min-w-full divide-y divide-white/[0.06]">
                 <thead className="bg-white/[0.02]">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Tenant</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Sessoes</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Usuarios unicos</th>
+                    <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Tenant</th>
+                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Sessoes</th>
+                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Usuarios unicos</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-white/[0.06]">
                   {summary.by_tenant.map((t) => (
                     <tr key={t.tenant_id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-3 text-sm font-medium text-slate-200">{t.tenant_name}</td>

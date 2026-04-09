@@ -52,14 +52,21 @@ export function Sidebar() {
   const { hasRole } = useAuth()
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-white/5 bg-[#021327]">
-      <div className="flex h-16 items-center border-b border-white/5 px-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="https://4edge.cloud/wp-content/uploads/2021/03/4edge-logo-white.png"
-          alt="4Edge"
-          className="h-6 opacity-90"
-        />
+    <aside className="flex h-screen w-64 flex-col border-r border-white/[0.06] bg-[#080c14]">
+      {/* Logo area */}
+      <div className="flex h-16 items-center gap-3 border-b border-white/[0.06] px-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-edge-cyan/10">
+          <svg className="h-4 w-4 text-edge-cyan" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+        </div>
+        <div>
+          <span className="text-sm font-bold tracking-wide text-white">4EDGE</span>
+          <p className="text-[10px] uppercase tracking-widest text-slate-500">Global Node</p>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -75,8 +82,8 @@ export function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-[#007bbe]/15 text-[#007bbe]'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                  ? 'bg-edge-cyan/10 text-edge-cyan'
+                  : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
               }`}
             >
               {ICONS[item.icon]}
@@ -86,8 +93,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-white/5 px-6 py-4">
-        <p className="text-[10px] uppercase tracking-widest text-slate-600">Captive Portal</p>
+      {/* Node status */}
+      <div className="border-t border-white/[0.06] px-5 py-4">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-edge-cyan animate-pulse" />
+          <p className="text-[10px] uppercase tracking-widest text-slate-500">Node Online</p>
+        </div>
       </div>
     </aside>
   )

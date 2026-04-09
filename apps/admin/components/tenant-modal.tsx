@@ -27,6 +27,7 @@ interface FormData {
   sw_guest_pass: string
   zenvia_token: string
   zenvia_sender: string
+  session_duration_minutes: string
 }
 
 const EMPTY_FORM: FormData = {
@@ -45,6 +46,7 @@ const EMPTY_FORM: FormData = {
   sw_guest_pass: '',
   zenvia_token: '',
   zenvia_sender: '',
+  session_duration_minutes: '480',
 }
 
 export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
@@ -74,6 +76,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         sw_guest_pass: '',
         zenvia_token: '',
         zenvia_sender: '',
+        session_duration_minutes: String(tenant.session_duration_minutes ?? 480),
       })
     }
   }, [tenant])
@@ -107,6 +110,10 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
       if (!form.zenvia_token.trim()) return 'Token Zenvia é obrigatório.'
       if (!form.zenvia_sender.trim()) return 'Sender Zenvia é obrigatório.'
     }
+    const sessionMin = parseInt(form.session_duration_minutes)
+    if (isNaN(sessionMin) || sessionMin < 15 || sessionMin > 1440) {
+      return 'Duracao da sessao deve estar entre 15 e 1440 minutos.'
+    }
     return null
   }
 
@@ -128,6 +135,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         const data: UpdateTenantRequest = {
           name: form.name.trim(),
           serials: buildSerials(),
+          session_duration_minutes: parseInt(form.session_duration_minutes),
         }
         data.sonicwall_config = { mode: form.sw_mode }
         if (form.sw_mode === 'rest') {
@@ -168,6 +176,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           sonicwall_config,
           zenvia_token: form.zenvia_token.trim(),
           zenvia_sender: form.zenvia_sender.trim(),
+          session_duration_minutes: parseInt(form.session_duration_minutes),
         }
 
         await createTenant(data)
@@ -200,15 +209,17 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
   }
 
   const inputClass = (field?: string) =>
-    `w-full rounded-lg border bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#007bbe] ${
-      fieldError?.field === field ? 'border-red-500/50' : 'border-white/10'
+    `w-full rounded-lg border bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-edge-cyan/40 ${
+      fieldError?.field === field ? 'border-red-500/50' : 'border-white/[0.08]'
     }`
 
+  const durationHours = parseInt(form.session_duration_minutes) / 60
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm pt-10 pb-10">
-      <div className="w-full max-w-2xl rounded-xl border border-white/10 bg-[#0d1f35] shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm pt-10 pb-10">
+      <div className="w-full max-w-2xl rounded-xl border border-white/[0.08] bg-[#0d1219] shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
           <h2 className="text-lg font-semibold text-white">
             {isEditing ? 'Editar cliente' : 'Novo cliente'}
           </h2>
@@ -232,10 +243,10 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* Basic Info */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Informacoes basicas</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Informacoes basicas</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Nome *</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Nome *</label>
                 <input
                   type="text"
                   value={form.name}
@@ -245,8 +256,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
-                  Porta * {isEditing && <span className="text-xs text-slate-600">(nao editavel)</span>}
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                  Porta * {isEditing && <span className="text-slate-600 normal-case">(nao editavel)</span>}
                 </label>
                 <input
                   type="number"
@@ -262,12 +273,39 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             </div>
           </div>
 
+          {/* Session Duration */}
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Sessao Wi-Fi</h3>
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                Duracao da sessao (minutos) *
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={form.session_duration_minutes}
+                  onChange={(e) => setField('session_duration_minutes', e.target.value)}
+                  min={15}
+                  max={1440}
+                  className={`${inputClass()} w-40`}
+                  placeholder="480"
+                />
+                <span className="text-xs text-slate-500">
+                  = {isNaN(durationHours) ? '—' : durationHours.toFixed(1)} horas
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] text-slate-600">
+                Tempo que o usuario fica conectado apos autenticacao (15 min - 24h)
+              </p>
+            </div>
+          </div>
+
           {/* Serials */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Seriais SonicWall</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Seriais SonicWall</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Primario *</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Primario *</label>
                 <input
                   type="text"
                   value={form.serial_primary}
@@ -277,7 +315,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Secundario <span className="text-xs text-slate-600">(HA pair)</span></label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Secundario <span className="text-slate-600 normal-case">(HA pair)</span></label>
                 <input
                   type="text"
                   value={form.serial_secondary}
@@ -291,12 +329,12 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* SonicWall Config */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Configuracao SonicWall</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Configuracao SonicWall</h3>
 
             {/* Modo — sempre visível */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Modo de integracao</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Modo de integracao</label>
                 <select
                   value={form.sw_mode}
                   onChange={(e) => setField('sw_mode', e.target.value as 'rest' | 'lhm')}
@@ -305,7 +343,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   <option value="rest">REST API</option>
                   <option value="lhm">LHM (External Guest Auth)</option>
                 </select>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-[10px] text-slate-600">
                   {form.sw_mode === 'rest'
                     ? 'A VPS fala diretamente com a API REST do SonicWall — exige host e credenciais.'
                     : 'O navegador do usuário fala com o SonicWall (External Guest Auth). A VPS não precisa de host nem credenciais.'}
@@ -317,7 +355,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             {form.sw_mode === 'rest' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Host {!isEditing && '*'}</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Host {!isEditing && '*'}</label>
                   <input
                     type="text"
                     value={form.sw_host}
@@ -327,8 +365,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">
-                    Porta de management <span className="text-xs text-slate-600">(default 443)</span>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                    Porta de management <span className="text-slate-600 normal-case">(default 443)</span>
                   </label>
                   <input
                     type="number"
@@ -341,7 +379,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Usuario {!isEditing && '*'}</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Usuario {!isEditing && '*'}</label>
                   <input
                     type="text"
                     value={form.sw_user}
@@ -351,9 +389,9 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
                     Senha {!isEditing && '*'}
-                    {isEditing && <span className="text-xs text-slate-600">(deixe vazio para manter)</span>}
+                    {isEditing && <span className="text-slate-600 normal-case">(deixe vazio para manter)</span>}
                   </label>
                   <input
                     type="password"
@@ -364,7 +402,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Firmware</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Firmware</label>
                   <select
                     value={form.sw_firmware}
                     onChange={(e) => setField('sw_firmware', e.target.value)}
@@ -380,7 +418,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             {/* Campos LHM — só aparecem em modo LHM */}
             {form.sw_mode === 'lhm' && (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-                <p className="mb-3 text-xs text-amber-400/80">
+                <p className="mb-3 text-[10px] text-amber-400/80">
                   Em LHM o SonicWall envia tudo o que precisamos no redirect inicial
                   (sessionId, mgmtBaseUrl, ufi, mac, ip). Os campos abaixo são todos
                   opcionais — só preencha guest user/senha se o seu SonicWall estiver
@@ -388,8 +426,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 </p>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                      Porta LHM <span className="text-xs text-slate-600">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                      Porta LHM <span className="text-slate-600 normal-case">(opcional)</span>
                     </label>
                     <input
                       type="number"
@@ -400,8 +438,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                      Usuario guest <span className="text-xs text-slate-600">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                      Usuario guest <span className="text-slate-600 normal-case">(opcional)</span>
                     </label>
                     <input
                       type="text"
@@ -412,8 +450,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                      Senha guest <span className="text-xs text-slate-600">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+                      Senha guest <span className="text-slate-600 normal-case">(opcional)</span>
                     </label>
                     <input
                       type="password"
@@ -430,12 +468,12 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* Zenvia */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Zenvia (SMS)</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Zenvia (SMS)</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
                   Token {!isEditing && '*'}
-                  {isEditing && <span className="text-xs text-slate-600">(deixe vazio para manter)</span>}
+                  {isEditing && <span className="text-slate-600 normal-case">(deixe vazio para manter)</span>}
                 </label>
                 <input
                   type="password"
@@ -446,9 +484,9 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
                   Sender {!isEditing && '*'}
-                  {isEditing && <span className="text-xs text-slate-600">(deixe vazio para manter)</span>}
+                  {isEditing && <span className="text-slate-600 normal-case">(deixe vazio para manter)</span>}
                 </label>
                 <input
                   type="text"
@@ -458,7 +496,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   className={inputClass()}
                   placeholder={isEditing ? 'inalterado' : 'rafael.mosella'}
                 />
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-[10px] text-slate-600">
                   Identificador do remetente na Zenvia (aparece como &ldquo;from&rdquo; no SMS).
                 </p>
               </div>
@@ -466,18 +504,18 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-white/5 pt-4">
+          <div className="flex justify-end gap-3 border-t border-white/[0.06] pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 transition-colors"
+              className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.04] transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-[#007bbe] px-4 py-2 text-sm font-medium text-white hover:bg-[#0090e0] disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar cliente'}
             </button>

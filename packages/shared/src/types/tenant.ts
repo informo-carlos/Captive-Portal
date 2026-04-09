@@ -41,6 +41,7 @@ export interface Tenant {
   provisioning_error?: string | null
   /** ID do container Docker do tenant (preenchido pelo worker) */
   container_id?: string | null
+  session_duration_minutes?: number
   sessions_count?: number
   created_at: string
   updated_at?: string

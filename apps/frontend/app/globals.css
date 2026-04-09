@@ -2,12 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
 
-.animate-shake {
-  animation: shake 0.5s ease-in-out;
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); opacity: 0.6; }
+  50% { transform: translateY(-20px); opacity: 0.8; }
+}
+
+@keyframes float-reverse {
+  0%, 100% { transform: translateY(0px); opacity: 0.5; }
+  50% { transform: translateY(15px); opacity: 0.7; }
+}
+
+.animate-shake { animation: shake 0.5s ease-in-out; }
+.animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-float-reverse { animation: float-reverse 7s ease-in-out infinite; }
+
+/* Select dropdown dark styling */
+select option {
+  background: #0d1219;
+  color: #e2e8f0;
 }

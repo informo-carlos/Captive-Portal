@@ -29,15 +29,15 @@ export function SessionsChart({ data }: SessionsChartProps) {
     <div className="h-72">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 12, fill: '#64748b' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fontSize: 11, fill: '#475569' }}
+            axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: '#64748b' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fontSize: 11, fill: '#475569' }}
+            axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
             allowDecimals={false}
           />
           <Tooltip
@@ -48,19 +48,19 @@ export function SessionsChart({ data }: SessionsChartProps) {
             formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
             contentStyle={{
               borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.1)',
-              backgroundColor: '#0d1f35',
+              border: '1px solid rgba(255,255,255,0.08)',
+              backgroundColor: '#0d1219',
               color: '#e2e8f0',
-              fontSize: '13px',
+              fontSize: '12px',
             }}
           />
           <Line
             type="monotone"
             dataKey="sessions"
-            stroke="#007bbe"
+            stroke="#00e5c3"
             strokeWidth={2}
-            dot={{ r: 3, fill: '#007bbe' }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 3, fill: '#00e5c3' }}
+            activeDot={{ r: 5, fill: '#00e5c3' }}
           />
         </LineChart>
       </ResponsiveContainer>

@@ -6,15 +6,15 @@ import { RequireRole } from '../../../components/require-role'
 import { getAuditLogs, ApiRequestError } from '../../../lib/api'
 
 const ACTION_LABELS: Record<string, { label: string; className: string }> = {
-  login: { label: 'Login', className: 'bg-[#007bbe]/15 text-[#007bbe]' },
-  tenant_created: { label: 'Tenant criado', className: 'bg-emerald-500/15 text-emerald-400' },
-  tenant_updated: { label: 'Tenant atualizado', className: 'bg-amber-500/15 text-amber-400' },
-  tenant_deactivated: { label: 'Tenant desativado', className: 'bg-yellow-500/15 text-yellow-400' },
-  tenant_activated: { label: 'Tenant ativado', className: 'bg-emerald-500/15 text-emerald-400' },
-  tenant_deleted: { label: 'Tenant deletado', className: 'bg-red-500/15 text-red-400' },
-  user_created: { label: 'Usuario criado', className: 'bg-emerald-500/15 text-emerald-400' },
-  user_updated: { label: 'Usuario atualizado', className: 'bg-amber-500/15 text-amber-400' },
-  user_deleted: { label: 'Usuario deletado', className: 'bg-red-500/15 text-red-400' },
+  login: { label: 'Login', className: 'bg-edge-cyan/10 text-edge-cyan border border-edge-cyan/20' },
+  tenant_created: { label: 'Tenant criado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+  tenant_updated: { label: 'Tenant atualizado', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' },
+  tenant_deactivated: { label: 'Tenant desativado', className: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' },
+  tenant_activated: { label: 'Tenant ativado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+  tenant_deleted: { label: 'Tenant deletado', className: 'bg-red-500/10 text-red-400 border border-red-500/20' },
+  user_created: { label: 'Usuario criado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+  user_updated: { label: 'Usuario atualizado', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' },
+  user_deleted: { label: 'Usuario deletado', className: 'bg-red-500/10 text-red-400 border border-red-500/20' },
 }
 
 export default function AuditPage() {
@@ -70,13 +70,13 @@ export default function AuditPage() {
     const info = ACTION_LABELS[actionKey]
     if (info) {
       return (
-        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${info.className}`}>
+        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${info.className}`}>
           {info.label}
         </span>
       )
     }
     return (
-      <span className="inline-flex rounded-full bg-slate-500/15 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+      <span className="inline-flex rounded-full bg-slate-500/10 px-2.5 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-500/20">
         {actionKey}
       </span>
     )
@@ -96,7 +96,7 @@ export default function AuditPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white">Audit Log</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-slate-500">
             Registro de todas as acoes administrativas.
           </p>
         </div>
@@ -104,11 +104,11 @@ export default function AuditPage() {
         {/* Filters */}
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Acao</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Acao</label>
             <select
               value={action}
               onChange={(e) => { setAction(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todas</option>
               <option value="login">Login</option>
@@ -123,21 +123,21 @@ export default function AuditPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">De</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">De</label>
             <input
               type="date"
               value={from}
               onChange={(e) => { setFrom(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Ate</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Ate</label>
             <input
               type="date"
               value={to}
               onChange={(e) => { setTo(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#007bbe]"
+              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             />
           </div>
         </div>
@@ -150,23 +150,23 @@ export default function AuditPage() {
         )}
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
-          <table className="min-w-full divide-y divide-white/5">
+        <div className="overflow-hidden rounded-xl glass-card">
+          <table className="min-w-full divide-y divide-white/[0.06]">
             <thead className="bg-white/[0.02]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Data/Hora</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Usuario</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Acao</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Detalhes</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">IP</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Data/Hora</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Usuario</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Acao</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Detalhes</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">IP</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/[0.06]">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
+                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
                       Carregando...
                     </div>
                   </td>
@@ -183,7 +183,7 @@ export default function AuditPage() {
                     <td className="px-6 py-4 text-sm text-slate-400 whitespace-nowrap">{formatDate(log.created_at)}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-slate-200">{log.user.name}</div>
-                      <div className="text-xs text-slate-500">{log.user.email}</div>
+                      <div className="text-[10px] text-slate-500">{log.user.email}</div>
                     </td>
                     <td className="px-6 py-4">{getActionBadge(log.action)}</td>
                     <td className="px-6 py-4 text-sm text-slate-400 max-w-xs truncate" title={formatPayload(log.payload)}>
@@ -200,21 +200,21 @@ export default function AuditPage() {
         {/* Pagination */}
         {pagination.pages > 1 && (
           <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
+            <p className="text-xs text-slate-500">
               Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={pagination.page <= 1}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50 transition-colors"
+                className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
               >
                 Anterior
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
                 disabled={pagination.page >= pagination.pages}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50 transition-colors"
+                className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
               >
                 Proxima
               </button>

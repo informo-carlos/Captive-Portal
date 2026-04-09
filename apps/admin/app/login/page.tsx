@@ -40,56 +40,65 @@ export default function LoginPage() {
 
   if (authLoading || user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#021327]">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#007bbe] border-t-transparent" />
+      <main className="flex min-h-screen items-center justify-center bg-[#0a0e17]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
       </main>
     )
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#010d1a] via-[#021327] to-[#041e3a] px-4 font-roboto">
-      {/* Animated background orbs - 4Edge blue palette */}
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0a0e17] px-4 font-roboto">
+      {/* Animated background orbs */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="animate-float absolute left-[10%] top-[15%] h-72 w-72 rounded-full bg-[#007bbe]/20 blur-3xl" />
-        <div className="animate-float-reverse absolute right-[15%] top-[10%] h-96 w-96 rounded-full bg-[#007bbe]/15 blur-3xl" />
-        <div className="animate-pulse-slow absolute bottom-[10%] left-[20%] h-80 w-80 rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="animate-float absolute bottom-[20%] right-[10%] h-64 w-64 rounded-full bg-[#007bbe]/10 blur-3xl" />
+        <div className="animate-float absolute left-[10%] top-[15%] h-72 w-72 rounded-full bg-edge-cyan/10 blur-3xl" />
+        <div className="animate-float-reverse absolute right-[15%] top-[10%] h-96 w-96 rounded-full bg-edge-cyan/5 blur-3xl" />
+        <div className="animate-pulse-slow absolute bottom-[10%] left-[20%] h-80 w-80 rounded-full bg-teal-500/5 blur-3xl" />
+        <div className="animate-float absolute bottom-[20%] right-[10%] h-64 w-64 rounded-full bg-edge-cyan/5 blur-3xl" />
       </div>
 
       {/* Grid pattern overlay */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.03]"
         style={{
-          backgroundImage: 'linear-gradient(rgba(0,123,190,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,123,190,.3) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(0,229,195,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,195,.3) 1px, transparent 1px)',
           backgroundSize: '60px 60px',
         }}
       />
 
+      {/* Decorative dots at top */}
+      <div className="pointer-events-none absolute top-6 left-0 right-0 flex justify-center gap-2 opacity-30">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} className="h-1 w-1 rounded-full bg-edge-cyan/40" />
+        ))}
+      </div>
+
       {/* Login card */}
       <div className="animate-slide-up relative z-10 w-full max-w-md">
         {/* Glow behind card */}
-        <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#007bbe]/20 via-sky-400/15 to-[#007bbe]/20 blur-xl" />
+        <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-edge-cyan/10 via-teal-400/5 to-edge-cyan/10 blur-xl" />
 
-        <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-8 shadow-2xl backdrop-blur-xl">
+        <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 shadow-2xl backdrop-blur-xl">
           {/* 4Edge Logo */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://4edge.cloud/wp-content/uploads/2021/03/4edge-logo-white.png"
-                alt="4Edge Datacenter"
-                className="h-10 object-contain drop-shadow-lg"
-              />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
+              <svg className="h-7 w-7 text-edge-cyan" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              </svg>
             </div>
-            <div className="mx-auto mb-4 h-px w-16 bg-gradient-to-r from-transparent via-[#007bbe]/50 to-transparent" />
-            <h1 className="text-xl font-medium tracking-wide text-white/90">
-              Captive Portal
+            <h1 className="text-lg font-bold tracking-widest text-white">
+              4EDGE
             </h1>
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.25em] text-slate-500">
+              Painel Administrativo
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-300">
+              <label htmlFor="email" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">
                 Email
               </label>
               <div className="relative">
@@ -105,14 +114,14 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-white shadow-sm backdrop-blur-sm transition-all duration-200 placeholder:text-slate-500 focus:border-[#007bbe]/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#007bbe]/20"
+                  className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-white shadow-sm backdrop-blur-sm transition-all duration-200 placeholder:text-slate-600 focus:border-edge-cyan/40 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-edge-cyan/15"
                   placeholder="admin@empresa.com"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-300">
+              <label htmlFor="password" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">
                 Senha
               </label>
               <div className="relative">
@@ -128,7 +137,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-white shadow-sm backdrop-blur-sm transition-all duration-200 placeholder:text-slate-500 focus:border-[#007bbe]/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#007bbe]/20"
+                  className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-white shadow-sm backdrop-blur-sm transition-all duration-200 placeholder:text-slate-600 focus:border-edge-cyan/40 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-edge-cyan/15"
                   placeholder="Sua senha"
                 />
               </div>
@@ -143,13 +152,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-[#007bbe] to-[#0095e8] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#007bbe]/25 transition-all duration-300 hover:from-[#0095e8] hover:to-[#00a8ff] hover:shadow-[#007bbe]/40 focus:outline-none focus:ring-2 focus:ring-[#007bbe]/50 focus:ring-offset-2 focus:ring-offset-[#021327] disabled:cursor-not-allowed disabled:opacity-60"
+              className="group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-edge-cyan to-teal-400 px-4 py-3 text-sm font-bold text-[#0a0e17] shadow-lg shadow-edge-cyan/20 transition-all duration-300 hover:shadow-edge-cyan/30 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 focus:ring-offset-[#0a0e17] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {/* Shine effect on hover */}
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
               {loading ? (
                 <span className="relative flex items-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0a0e17] border-t-transparent" />
                   Entrando...
                 </span>
               ) : (
@@ -160,25 +168,21 @@ export default function LoginPage() {
 
           {/* Bottom decorative */}
           <div className="mt-8 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#007bbe]/20 to-transparent" />
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-edge-cyan/20 to-transparent" />
             <div className="flex items-center gap-1.5">
-              <div className="h-1.5 w-1.5 rounded-full bg-[#007bbe]/40" />
+              <div className="h-1.5 w-1.5 rounded-full bg-edge-cyan/40" />
               <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600">Datacenter</span>
-              <div className="h-1.5 w-1.5 rounded-full bg-[#007bbe]/40" />
+              <div className="h-1.5 w-1.5 rounded-full bg-edge-cyan/40" />
             </div>
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#007bbe]/20 to-transparent" />
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-edge-cyan/20 to-transparent" />
           </div>
         </div>
       </div>
 
-      {/* Bottom accent dots */}
-      <div className="pointer-events-none absolute bottom-6 left-0 right-0 flex justify-center gap-1.5 opacity-30">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-1 w-1 rounded-full bg-[#007bbe]"
-            style={{ animationDelay: `${i * 0.2}s`, animation: 'pulse-slow 3s ease-in-out infinite' }}
-          />
+      {/* Bottom decorative dots */}
+      <div className="pointer-events-none absolute bottom-6 left-0 right-0 flex justify-center gap-2 opacity-30">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} className="h-1 w-1 rounded-full bg-edge-cyan/40" />
         ))}
       </div>
     </main>
