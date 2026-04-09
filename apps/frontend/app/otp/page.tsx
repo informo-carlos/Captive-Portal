@@ -122,11 +122,13 @@ function OtpPage() {
         } catch {
           /* ignore */
         }
-        // Monta form hidden e submete top-level via GET — SonicOS 7.3.2
-        // devolveu 400 com POST mesmo preservando a query string. GET
-        // junta tudo na URL, que é o que a pagina nativa do SW faz.
+        // Monta form hidden e submete top-level. POST com action limpa
+        // (sem query) e TODOS os campos no body — lhmParams originais
+        // do SW + campos de auth. GET dá 404, POST com query dá 400,
+        // então isolamos tudo no body.
         const form = document.createElement('form')
-        form.method = 'GET'
+        form.method = 'POST'
+        form.enctype = 'application/x-www-form-urlencoded'
         form.action = primary
         form.style.display = 'none'
         // Hidden inputs: TODOS os lhmParams originais do SW (ssid, sessionId,
