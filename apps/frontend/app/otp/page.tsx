@@ -99,58 +99,76 @@ function OtpPage() {
       // original. Se pelo menos um POST funcionou, o MAC foi autorizado
       // e o redirect passa pelo SW sem reintercepção.
       if (result.lhm_submit) {
-        const { urls, body } = result.lhm_submit
-        // Estratégia diagnóstica: top-level form POST pro endpoint
-        // primário (primeira URL HTTP do clientRedirectUrl). O browser
-        // navega pro SW e exibe exatamente o que ele devolveu — se for
-        // XML de sucesso, 404, ou qualquer outra coisa, a gente enxerga
-        // na tela. Isso é o único jeito de sair do opaque response.
-        // Em 7.3.2+ o caminho oficial é `lhmapi/externalGuest` (confirmado
-        // pelo suporte SonicWall). Legado fica como fallback.
+        const { urls, body, redirectTo } = result.lhm_submit
+        // SonicOS 7.3.2+: suporte oficial confirmou que os CGIs foram
+        // removidos e substituidos pelo endpoint REST `lhmapi/externalGuest`.
+        // Como é REST, o contrato provavel é JSON (Content-Type: application/json).
+        // Montamos o payload JSON unindo lhmParams (sessionId, ufi, mgmtBaseUrl,
+        // clientRedirectUrl, req, ssid...) com os campos de auth — sem saber
+        // os nomes exatos, mandamos tudo que o SW ja conhece.
         const primary =
           urls.find((u) => u.startsWith('http://') && u.endsWith('/lhmapi/externalGuest')) ??
-          urls.find((u) => u.startsWith('http://') && u.endsWith('/externalGuestLogin.cgi')) ??
           urls[0]
-        // Reporta o que vamos fazer pro backend antes de navegar
+        const jsonPayload: Record<string, string> = {
+          ...lhmParams,
+          ...(body as Record<string, string>),
+        }
+        let status: number | null = null
+        let responseText = ''
+        let networkError: string | null = null
+        try {
+          const res = await fetch(primary, {
+            method: 'POST',
+            mode: 'cors',
+            credentials: 'omit',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify(jsonPayload),
+          })
+          status = res.status
+          try {
+            responseText = (await res.text()).slice(0, 2048)
+          } catch {
+            /* ignore */
+          }
+        } catch (e) {
+          networkError = (e as Error).name + ':' + (e as Error).message
+        }
+        // Reporta resultado pro backend pra diagnostico
         try {
           await fetch(
             `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ strategy: 'top-level-form', primary }),
+              body: JSON.stringify({
+                strategy: 'json-fetch',
+                primary,
+                status,
+                responseText,
+                networkError,
+                payloadKeys: Object.keys(jsonPayload),
+              }),
               keepalive: true,
             },
           )
         } catch {
           /* ignore */
         }
-        // Monta form hidden e submete top-level. POST com action limpa
-        // (sem query) e TODOS os campos no body — lhmParams originais
-        // do SW + campos de auth. GET dá 404, POST com query dá 400,
-        // então isolamos tudo no body.
-        const form = document.createElement('form')
-        form.method = 'POST'
-        form.enctype = 'application/x-www-form-urlencoded'
-        form.action = primary
-        form.style.display = 'none'
-        // Hidden inputs: TODOS os lhmParams originais do SW (ssid, sessionId,
-        // ufi, mgmtBaseUrl, clientRedirectUrl, req, magic...) + os campos
-        // de auth (sessId, userName, sessionLifetime, idleTimeout). Como
-        // method=GET, viram uma query string completa.
-        const appendField = (k: string, v: string) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = k
-          input.value = v
-          form.appendChild(input)
+        // Se o POST funcionou (status 2xx), redireciona pro `req` original.
+        // Caso contrario, mostra erro na tela com o status pra diagnostico.
+        if (status && status >= 200 && status < 300) {
+          window.location.href = redirectTo
+          return
         }
-        for (const [k, v] of Object.entries(lhmParams)) appendField(k, v)
-        for (const [k, v] of Object.entries(body as Record<string, string>)) {
-          appendField(k, v)
-        }
-        document.body.appendChild(form)
-        form.submit()
+        setError(
+          networkError
+            ? `Falha de rede ao contatar o firewall (${networkError}). Verifique se esta na rede Wi-Fi.`
+            : `Firewall retornou status ${status ?? '?'}. ${responseText.slice(0, 200)}`,
+        )
+        setLoading(false)
         return
       }
       router.push(`/success?serial=${serial}`)
