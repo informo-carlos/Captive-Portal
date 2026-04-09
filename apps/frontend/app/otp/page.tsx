@@ -99,47 +99,63 @@ function OtpPage() {
       // original. Se pelo menos um POST funcionou, o MAC foi autorizado
       // e o redirect passa pelo SW sem reintercepção.
       if (result.lhm_submit) {
-        const { urls, body } = result.lhm_submit
-        // fetch JSON foi bloqueado por CORS preflight (Failed to fetch).
-        // Workaround: top-level form POST — formulario HTML nao dispara
-        // preflight, o browser navega pro SW e mostra a resposta. Envia
-        // pro novo endpoint `lhmapi/externalGuest` (7.3.2+) com todos os
-        // campos como form-urlencoded. Se o SW rejeitar porque exige
-        // application/json duro, a mensagem de erro dele aparece na tela.
+        const { urls, body, redirectTo } = result.lhm_submit
+        // Truque pra driblar CORS: fetch no-cors com Content-Type text/plain
+        // mas corpo contendo uma string JSON. text/plain conta como simple
+        // request (nao dispara preflight), passa direto. Se o parser do SW
+        // for lax (ignora content-type, parseia como JSON pelo body), ele
+        // aceita. Nao conseguimos ler a resposta (opaque), entao depois
+        // redirecionamos pro req e torcemos pro MAC estar autorizado.
         const primary =
           urls.find((u) => u.startsWith('http://') && u.endsWith('/lhmapi/externalGuest')) ??
           urls[0]
+        const jsonPayload: Record<string, string> = {
+          ...lhmParams,
+          ...(body as Record<string, string>),
+        }
+        const jsonBody = JSON.stringify(jsonPayload)
+        let networkError: string | null = null
+        const started = Date.now()
+        try {
+          await fetch(primary, {
+            method: 'POST',
+            mode: 'no-cors',
+            credentials: 'omit',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: jsonBody,
+          })
+        } catch (e) {
+          networkError = (e as Error).name + ':' + (e as Error).message
+        }
+        const ms = Date.now() - started
         try {
           await fetch(
             `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ strategy: 'top-level-form-lhmapi', primary }),
+              body: JSON.stringify({
+                strategy: 'no-cors-text-plain-json',
+                primary,
+                ms,
+                networkError,
+                payloadKeys: Object.keys(jsonPayload),
+              }),
               keepalive: true,
             },
           )
         } catch {
           /* ignore */
         }
-        const form = document.createElement('form')
-        form.method = 'POST'
-        form.enctype = 'application/x-www-form-urlencoded'
-        form.action = primary
-        form.style.display = 'none'
-        const appendField = (k: string, v: string) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = k
-          input.value = v
-          form.appendChild(input)
+        if (networkError) {
+          setError(
+            `Falha de rede ao contatar o firewall (${networkError}).`,
+          )
+          setLoading(false)
+          return
         }
-        for (const [k, v] of Object.entries(lhmParams)) appendField(k, v)
-        for (const [k, v] of Object.entries(body as Record<string, string>)) {
-          appendField(k, v)
-        }
-        document.body.appendChild(form)
-        form.submit()
+        // POST foi (opaque). Redireciona — se autorizou, passa direto.
+        window.location.href = redirectTo
         return
       }
       router.push(`/success?serial=${serial}`)
