@@ -121,14 +121,40 @@ e redireciona o usuário pro `req` original.
 3. **Session Lifetime / Idle Timeout**: deixar em 0 — quem dita é o portal via querystring
 4. **Allow Traffic From / To**: configurar conforme política do cliente
 
+## ⚠️ BLOQUEIO CONFIRMADO — SonicOS 7.3.2+
+
+A SonicWall **removeu** o endpoint `externalGuestLogin.cgi` e todo o
+mecanismo de External Web Server CGI a partir do **SonicOS 7.3.2** e
+**SonicOS 8.2.0**. Citação oficial:
+
+> *"Support for customizing guest login pages using an external web
+> server with the CGI mechanism has been deprecated and has been removed
+> starting with SonicOS 7.3.2 and SonicOS 8.2.0 and later releases."*
+
+Validado em campo (08/04/2026) contra um TZ 570 rodando
+**SonicOS 7.3.2-7010-R9118**:
+- O SW continua mandando o redirect com todos os params LHM
+  (`sessionId`, `mac`, `ufi`, `mgmtBaseUrl`, `clientRedirectUrl`, `req`)
+- Os campos "Logout CGI / Server Status CGI / Session Sync CGI" ainda
+  aparecem na UI (Network → Zones → Guest Services → Advanced) mas são
+  vestígios mortos da feature deprecada
+- Qualquer chamada a `externalGuestLogin.cgi` em qualquer porta retorna
+  `404 SonicWall Server` — o handler simplesmente não existe mais
+
+**Conclusão:** o modo `lhm` deste código só funciona em **SonicOS ≤ 7.2.x**.
+Pra firmwares 7.3.2+ e 8.2.0+, é obrigatório usar:
+1. Modo `rest` via `/api/sonicos/user-management/guest/*` (requer alcance
+   de rede VPS → SW, ex: port forward na WAN com ACL whitelist)
+2. RADIUS/LDAP backend
+3. Downgrade do firmware pra 7.2.x
+
 ## Pontos validados / pendentes
 
 - [x] Nomes dos query params do redirect inicial (KB + django-sonicwall)
 - [x] Endpoint `externalGuestLogin.cgi` e parâmetros (KB SonicWall 170504507130894)
 - [x] Implementação backend e frontend
-- [ ] Testar end-to-end contra TZ 570 ao vivo (sessão de validação pendente)
-- [ ] Confirmar que `userName=<mac>` é aceito sem reclamação do firmware 7.x
-- [ ] Verificar se o firmware 7.x exige `cc` ou outro campo extra
+- [x] Testar end-to-end contra TZ 570 ao vivo — **falhou em 7.3.2** (CGI removida)
+- [ ] Validar contra TZ 570 rodando 7.2.x (caminho feliz teórico)
 
 ## Referências
 

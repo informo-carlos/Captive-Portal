@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
 import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
-import { deserializeLhmParams, isValidLhmRedirectUrl } from '../../lib/lhm-params'
+import { deserializeLhmParams } from '../../lib/lhm-params'
 
 export default function OtpPageWrapper() {
   return (
@@ -92,18 +92,28 @@ function OtpPage() {
 
     try {
       const result = await verifyOtp({ phone, otp }, serial)
-      // Em modo LHM o backend devolve uma URL do gateway SonicWall — o navegador
-      // do usuário precisa ir até ela pra confirmar a auth no firewall.
-      // Validamos o formato (https + path /externalGuestLogin.cgi) pra mitigar
-      // open redirect caso o backend devolva qualquer coisa estranha.
-      if (result.redirect_url) {
-        if (isValidLhmRedirectUrl(result.redirect_url)) {
-          window.location.href = result.redirect_url
-          return
-        }
-        // URL suspeita: trata como sucesso normal e loga no console.
-        // eslint-disable-next-line no-console
-        console.warn('redirect_url inválido recebido do backend, ignorando')
+      // Em modo LHM o backend devolve um payload `lhm_submit` com N URLs
+      // candidatas pro externalGuestLogin.cgi do gateway local. Disparamos
+      // POSTs fire-and-forget em paralelo (no-cors → opaque response, JS
+      // não lê mas o SW processa) e em seguida redirecionamos pro `req`
+      // original. Se pelo menos um POST funcionou, o MAC foi autorizado
+      // e o redirect passa pelo SW sem reintercepção.
+      if (result.lhm_submit) {
+        const { urls, body, redirectTo } = result.lhm_submit
+        const formBody = new URLSearchParams(body as Record<string, string>)
+        await Promise.allSettled(
+          urls.map((url) =>
+            fetch(url, {
+              method: 'POST',
+              mode: 'no-cors',
+              credentials: 'omit',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: formBody,
+            }),
+          ),
+        )
+        window.location.href = redirectTo
+        return
       }
       router.push(`/success?serial=${serial}`)
     } catch (err) {

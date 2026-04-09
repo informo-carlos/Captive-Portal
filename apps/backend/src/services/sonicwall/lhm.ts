@@ -1,31 +1,40 @@
 // LHM — Lightweight Hotspot Messaging / External Guest Authentication
 //
-// Protocolo (mapeado a partir da KB SonicWall + django-sonicwall + LHM FAQ):
+// Protocolo real (mapeado via django-sonicwall + kdaveid/CaptivePortal.MockServer):
 //
 //   1. Cliente conecta ao SSID com External Guest Auth habilitado.
-//   2. SonicWall intercepta HTTP e redireciona pro nosso portal injetando:
-//        sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
-//   3. Capturamos esses params no frontend e enviamos no request-otp.
-//      Backend guarda em Redis junto com o OTP.
-//   4. Após verify-otp OK, esta função MONTA a URL de retorno:
-//        ${mgmtBaseUrl}externalGuestLogin.cgi?sessId=...&userName=<mac>
-//          &sessionLifetime=<sec>&idleTimeout=<sec>
-//   5. Devolve essa URL no `redirectUrl`. O frontend faz `window.location`
-//      pra ela. Como o navegador do usuário está DENTRO da rede do cliente,
-//      ele alcança o gateway local — nossa VPS NUNCA toca no SonicWall.
-//   6. SonicWall valida o sessId, libera o acesso e redireciona o usuário
-//      pro `req` original.
+//   2. SonicWall intercepta HTTP e redireciona pro nosso portal injetando
+//      query params: sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
+//   3. Capturamos no frontend, mandamos no body do request-otp, backend
+//      guarda em Redis junto com o OTP.
+//   4. Após verify-otp OK, esta função NÃO faz chamada alguma ao SonicWall.
+//      Em vez disso, constrói um payload `LhmBrowserSubmit` que o frontend
+//      vai usar pra disparar POSTs fire-and-forget direto do navegador do
+//      usuário (que está DENTRO da rede do cliente).
+//   5. Frontend executa `fetch(url, { method:'POST', mode:'no-cors', body })`
+//      pra cada URL candidata em paralelo. A resposta é XML
+//      (<SonicWALLAccessGatewayParam><AuthenticationReply><ResponseCode>50
+//      </ResponseCode>...) mas como é no-cors, JS não lê — a gente confia
+//      que pelo menos um POST deu certo.
+//   6. Frontend faz `window.location.href = req` — se o SW autorizou o MAC,
+//      o request passa; se não, cai no captive portal de novo.
+//
+// Por que múltiplas URLs candidatas? Porque a SonicWall quebrou
+// `externalGuestLogin.cgi` em 7.3.2+ e a gente não sabe exatamente onde o
+// endpoint "novo" vive. A gente dispara em todas as variantes razoáveis e
+// torce que uma sobreviva. Fire-and-forget é barato — 5-10 POSTs extras não
+// atrapalham ninguém e o browser nem espera resposta.
 //
 // Ver: docs/lhm-protocol-tz570.md
 
 import type { FastifyBaseLogger } from 'fastify'
-import type { ReleaseAccessParams, ReleaseAccessResult, SonicwallConfig } from './index'
+import type {
+  LhmBrowserSubmit,
+  ReleaseAccessParams,
+  ReleaseAccessResult,
+  SonicwallConfig,
+} from './index'
 
-/**
- * Nomes dos query params que SonicWalls em modo External Guest Auth injetam
- * no redirect inicial. Capturamos qualquer um que vier — só sessionId e
- * mgmtBaseUrl são obrigatórios.
- */
 export const KNOWN_LHM_PARAM_NAMES = [
   'sessionId',
   'ip',
@@ -37,11 +46,28 @@ export const KNOWN_LHM_PARAM_NAMES = [
   'cc',
 ] as const
 
-/** Limite do path do mgmtBaseUrl pra evitar SSRF/abuso. */
-const MAX_MGMT_BASE_URL_LENGTH = 512
+const MAX_BASE_URL_LENGTH = 512
+const MAX_CANDIDATE_URLS = 12
 
-function isValidMgmtBaseUrl(raw: string): boolean {
-  if (!raw || raw.length > MAX_MGMT_BASE_URL_LENGTH) return false
+/**
+ * Paths tentados em cada base. A SonicWall historicamente serve
+ * `externalGuestLogin.cgi` na raiz — é o único path documentado. Em 7.3.2+
+ * ele retorna 404, então a gente dispara também em variantes razoáveis pra
+ * cobrir o caso do endpoint ter sido movido silenciosamente.
+ */
+const CANDIDATE_PATHS = [
+  'externalGuestLogin.cgi',
+  'cgi-bin/externalGuestLogin.cgi',
+  'sonicui/7/externalGuestLogin.cgi',
+  // externalGuestUpdateSession.cgi é o endpoint "irmão" de refresh — se o
+  // login quebrou mas o update sobreviveu, criar uma sessão via update pode
+  // funcionar (alguns firmwares tratam update com sessId desconhecido como
+  // create implícito).
+  'externalGuestUpdateSession.cgi',
+] as const
+
+function isValidBaseUrl(raw: string): boolean {
+  if (!raw || raw.length > MAX_BASE_URL_LENGTH) return false
   let url: URL
   try {
     url = new URL(raw)
@@ -49,26 +75,39 @@ function isValidMgmtBaseUrl(raw: string): boolean {
     return false
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
-  // SonicWall sempre injeta hostname/IP — rejeita URLs sem host
   if (!url.hostname) return false
   return true
 }
 
-function buildExternalGuestLoginUrl(
-  mgmtBaseUrl: string,
-  sessionId: string,
-  userName: string,
-  sessionLifetimeSec: number,
-  idleTimeoutSec: number,
-): string {
-  // Garante que mgmtBaseUrl termina com `/` antes de concatenar
-  const base = mgmtBaseUrl.endsWith('/') ? mgmtBaseUrl : `${mgmtBaseUrl}/`
-  const url = new URL('externalGuestLogin.cgi', base)
-  url.searchParams.set('sessId', sessionId)
-  url.searchParams.set('userName', userName)
-  url.searchParams.set('sessionLifetime', String(sessionLifetimeSec))
-  url.searchParams.set('idleTimeout', String(idleTimeoutSec))
-  return url.toString()
+/**
+ * Constrói todas as URLs candidatas a partir das bases fornecidas pelo SW.
+ * Deduplica e limita o total — fire-and-forget é barato mas não infinito.
+ */
+function buildCandidateUrls(bases: string[]): string[] {
+  const urls = new Set<string>()
+  for (const rawBase of bases) {
+    if (!isValidBaseUrl(rawBase)) continue
+    const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
+    for (const path of CANDIDATE_PATHS) {
+      try {
+        urls.add(new URL(path, base).toString())
+      } catch {
+        // base inválida — ignora e segue pras próximas
+      }
+      if (urls.size >= MAX_CANDIDATE_URLS) break
+    }
+    if (urls.size >= MAX_CANDIDATE_URLS) break
+  }
+  return Array.from(urls)
+}
+
+/** `req` do SW é a URL original que o usuário tentou acessar. Fallback seguro. */
+function pickRedirectTarget(req: string | undefined): string {
+  if (req && /^https?:\/\//i.test(req) && req.length <= 2048) return req
+  // Fallback: a página de detecção de captive portal do Android/iOS.
+  // Se o SW autorizou o MAC, essa página volta 204, o OS detecta internet
+  // disponível e dispensa o captive prompt automaticamente.
+  return 'http://connectivitycheck.gstatic.com/generate_204'
 }
 
 export async function releaseAccessLhm(
@@ -78,27 +117,12 @@ export async function releaseAccessLhm(
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
-  // Preferimos clientRedirectUrl sobre mgmtBaseUrl: o externalGuestLogin.cgi
-  // vive na porta do *portal do usuário* (ex: :444), não na porta de
-  // gerência (:4043). Em firmware TZ 7.x a porta de mgmt frequentemente
-  // não responde ao endpoint de auth de guest. mgmtBaseUrl é fallback.
-  const mgmtBaseUrl = lhm['clientRedirectUrl'] || lhm['mgmtBaseUrl']
-  logger.info(
-    {
-      hasClientRedirect: !!lhm['clientRedirectUrl'],
-      hasMgmtBase: !!lhm['mgmtBaseUrl'],
-      chosen: lhm['clientRedirectUrl'] ? 'clientRedirectUrl' : 'mgmtBaseUrl',
-    },
-    'lhm_base_url_chosen',
-  )
+  const clientRedirectUrl = lhm['clientRedirectUrl']
+  const mgmtBaseUrl = lhm['mgmtBaseUrl']
 
-  // Sem sessionId+baseUrl não há LHM possível: usuário chegou no portal
-  // sem passar pelo SonicWall (ex: digitou o IP direto).
-  if (!sessionId || !mgmtBaseUrl) {
-    logger.error(
-      { lhmKeys: Object.keys(lhm) },
-      'lhm_missing_redirect_params',
-    )
+  // Sem sessionId + pelo menos uma base, não há LHM possível.
+  if (!sessionId || (!clientRedirectUrl && !mgmtBaseUrl)) {
+    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_missing_redirect_params')
     return {
       success: false,
       raw: {
@@ -111,40 +135,52 @@ export async function releaseAccessLhm(
     }
   }
 
-  if (!isValidMgmtBaseUrl(mgmtBaseUrl)) {
-    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_invalid_mgmt_base_url')
+  // clientRedirectUrl é a interface do *user portal* (ex: http://IP:8080),
+  // geralmente alcançável pela VLAN guest. mgmtBaseUrl é a interface de
+  // *gerência* (ex: https://IP:4043), frequentemente BLOQUEADA pra guest.
+  // A gente coloca clientRedirectUrl primeiro porque tem mais chance de
+  // sobreviver às access rules do cliente, mas dispara nas duas.
+  const bases = [clientRedirectUrl, mgmtBaseUrl].filter(Boolean) as string[]
+  const urls = buildCandidateUrls(bases)
+
+  if (urls.length === 0) {
+    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_no_valid_candidate_urls')
     return {
       success: false,
       raw: {
-        error: 'invalid_mgmt_base_url',
-        message: 'mgmtBaseUrl inválido no redirect do SonicWall.',
+        error: 'invalid_lhm_base_url',
+        message: 'Nenhuma URL base válida no redirect do SonicWall.',
       },
       mode: 'lhm',
     }
   }
 
-  // sessionLifetime e idleTimeout em segundos.
-  // sessionMinutes vem do tenant; idleTimeout fixo em 30min (default razoável).
   const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
   const idleTimeoutSec = 30 * 60
 
-  const redirectUrl = buildExternalGuestLoginUrl(
-    mgmtBaseUrl,
-    sessionId,
-    params.mac, // SonicWall aceita o MAC como userName
-    sessionLifetimeSec,
-    idleTimeoutSec,
-  )
+  const lhmSubmit: LhmBrowserSubmit = {
+    urls,
+    body: {
+      sessId: sessionId,
+      userName: params.mac, // SonicWall aceita o MAC como userName
+      sessionLifetime: String(sessionLifetimeSec),
+      idleTimeout: String(idleTimeoutSec),
+    },
+    redirectTo: pickRedirectTarget(lhm['req']),
+  }
 
   logger.info(
     {
       lhmKeys: Object.keys(lhm),
+      candidateCount: urls.length,
       sessionLifetimeSec,
       idleTimeoutSec,
-      // Útil pra debug end-to-end. sessId é efêmero e mgmtBaseUrl é IP interno.
-      redirectUrl,
+      // Lista completa de URLs candidatas no log pra debug do workaround.
+      // sessId é efêmero (válido por minutos); IPs são internos do cliente.
+      candidateUrls: urls,
+      redirectTo: lhmSubmit.redirectTo,
     },
-    'lhm_redirect_built',
+    'lhm_submit_built',
   )
 
   return {
@@ -153,11 +189,10 @@ export async function releaseAccessLhm(
       protocol: 'lhm',
       sessionLifetimeSec,
       idleTimeoutSec,
-      // Não logamos sessionId/mgmtBaseUrl aqui — vão pro DB criptografado/raw
-      // só com as keys presentes.
+      candidateCount: urls.length,
       lhmKeys: Object.keys(lhm),
     },
     mode: 'lhm',
-    redirectUrl,
+    lhmSubmit,
   }
 }

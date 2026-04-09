@@ -287,15 +287,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const responseBody: {
       message: string
       expires_in: number
-      redirect_url?: string
+      lhm_submit?: typeof swResult.lhmSubmit
     } = {
       message: 'Acesso liberado. Você já pode navegar.',
       expires_in: expiresInSeconds,
     }
-    // Só inclui redirect_url quando o backend de fato montou uma (modo LHM).
-    // Em modo REST/stub o campo é omitido pra não vazar `undefined` no JSON.
-    if (swResult.redirectUrl) {
-      responseBody.redirect_url = swResult.redirectUrl
+    // Em modo LHM, o frontend dispara POSTs fire-and-forget pro SW e depois
+    // redireciona o browser. Em modo REST o campo é omitido.
+    if (swResult.lhmSubmit) {
+      responseBody.lhm_submit = swResult.lhmSubmit
     }
     return reply.send(responseBody)
   })

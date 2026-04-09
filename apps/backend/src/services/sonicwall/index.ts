@@ -20,18 +20,40 @@ export interface ReleaseAccessParams {
   lhmParams?: Record<string, string>
 }
 
+/**
+ * Instrução pro frontend executar o passo final do LHM diretamente do browser
+ * do usuário. O browser está DENTRO da rede do cliente, então alcança o
+ * SonicWall (a VPS não precisa — e não deve — falar com o SW).
+ *
+ * O frontend dispara `fetch(url, { method: 'POST', mode: 'no-cors', body })`
+ * em paralelo pra cada URL candidata e, em seguida, faz `window.location.href
+ * = redirectTo` pra onde o usuário queria ir. Se pelo menos uma das URLs
+ * funcionou, o SonicWall já autorizou o MAC e o redirect passa.
+ *
+ * O modo `no-cors` torna o POST uma "simple request" do CORS (content-type
+ * url-encoded não dispara preflight) — o browser manda, o SW processa, a
+ * resposta XML volta como opaque (JS não lê, mas a gente não precisa).
+ */
+export interface LhmBrowserSubmit {
+  urls: string[]
+  body: {
+    sessId: string
+    userName: string
+    sessionLifetime: string
+    idleTimeout: string
+  }
+  redirectTo: string
+}
+
 export interface ReleaseAccessResult {
   success: boolean
   raw: unknown
   mode: 'rest' | 'lhm'
   /**
-   * Quando preenchido, o frontend deve redirecionar o navegador do usuário
-   * pra essa URL (em vez de mostrar "acesso liberado"). É o caminho do LHM:
-   * o próprio browser do usuário, dentro da rede do cliente, fala com o
-   * gateway local e confirma a autenticação. A nossa VPS NUNCA toca no
-   * SonicWall do cliente.
+   * Quando preenchido, o frontend dispara POSTs fire-and-forget pro SonicWall
+   * a partir do próprio browser do usuário. Ver `LhmBrowserSubmit`.
    */
-  redirectUrl?: string
+  lhmSubmit?: LhmBrowserSubmit
 }
 
 export interface SonicwallConfig {
