@@ -105,18 +105,9 @@ function OtpPage() {
         // navega pro SW e exibe exatamente o que ele devolveu — se for
         // XML de sucesso, 404, ou qualquer outra coisa, a gente enxerga
         // na tela. Isso é o único jeito de sair do opaque response.
-        const primaryBase =
+        const primary =
           urls.find((u) => u.startsWith('http://') && u.endsWith('/externalGuestLogin.cgi')) ??
           urls[0]
-        // SonicWall espera os query params originais (sessionId, mgmtBaseUrl,
-        // clientRedirectUrl, req, magic, ufi, ssid...) preservados na URL do
-        // POST — sem isso o lighttpd dele devolve 400 Bad Request. Anexa
-        // todos os lhmParams capturados no redirect inicial à action do form.
-        const qs = new URLSearchParams()
-        for (const [k, v] of Object.entries(lhmParams)) qs.append(k, v)
-        const primary = qs.toString()
-          ? `${primaryBase}?${qs.toString()}`
-          : primaryBase
         // Reporta o que vamos fazer pro backend antes de navegar
         try {
           await fetch(
@@ -131,17 +122,27 @@ function OtpPage() {
         } catch {
           /* ignore */
         }
-        // Monta form hidden e submete top-level
+        // Monta form hidden e submete top-level via GET — SonicOS 7.3.2
+        // devolveu 400 com POST mesmo preservando a query string. GET
+        // junta tudo na URL, que é o que a pagina nativa do SW faz.
         const form = document.createElement('form')
-        form.method = 'POST'
+        form.method = 'GET'
         form.action = primary
         form.style.display = 'none'
-        for (const [k, v] of Object.entries(body as Record<string, string>)) {
+        // Hidden inputs: TODOS os lhmParams originais do SW (ssid, sessionId,
+        // ufi, mgmtBaseUrl, clientRedirectUrl, req, magic...) + os campos
+        // de auth (sessId, userName, sessionLifetime, idleTimeout). Como
+        // method=GET, viram uma query string completa.
+        const appendField = (k: string, v: string) => {
           const input = document.createElement('input')
           input.type = 'hidden'
           input.name = k
           input.value = v
           form.appendChild(input)
+        }
+        for (const [k, v] of Object.entries(lhmParams)) appendField(k, v)
+        for (const [k, v] of Object.entries(body as Record<string, string>)) {
+          appendField(k, v)
         }
         document.body.appendChild(form)
         form.submit()
