@@ -105,9 +105,18 @@ function OtpPage() {
         // navega pro SW e exibe exatamente o que ele devolveu — se for
         // XML de sucesso, 404, ou qualquer outra coisa, a gente enxerga
         // na tela. Isso é o único jeito de sair do opaque response.
-        const primary =
+        const primaryBase =
           urls.find((u) => u.startsWith('http://') && u.endsWith('/externalGuestLogin.cgi')) ??
           urls[0]
+        // SonicWall espera os query params originais (sessionId, mgmtBaseUrl,
+        // clientRedirectUrl, req, magic, ufi, ssid...) preservados na URL do
+        // POST — sem isso o lighttpd dele devolve 400 Bad Request. Anexa
+        // todos os lhmParams capturados no redirect inicial à action do form.
+        const qs = new URLSearchParams()
+        for (const [k, v] of Object.entries(lhmParams)) qs.append(k, v)
+        const primary = qs.toString()
+          ? `${primaryBase}?${qs.toString()}`
+          : primaryBase
         // Reporta o que vamos fazer pro backend antes de navegar
         try {
           await fetch(
@@ -178,7 +187,7 @@ function OtpPage() {
     } finally {
       setLoading(false)
     }
-  }, [otpDigits, phone, serial, router, triggerShake])
+  }, [otpDigits, phone, serial, lhmParams, router, triggerShake])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
