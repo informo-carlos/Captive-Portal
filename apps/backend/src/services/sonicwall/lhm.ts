@@ -56,13 +56,13 @@ const MAX_CANDIDATE_URLS = 12
  * cobrir o caso do endpoint ter sido movido silenciosamente.
  */
 const CANDIDATE_PATHS = [
+  // SonicOS 7.3.2+: os CGIs foram REMOVIDOS e o suporte oficial
+  // orientou a usar este endpoint REST. É o candidato primário.
+  'lhmapi/externalGuest',
+  // Legado (7.1.x e anteriores) — mantido como fallback.
   'externalGuestLogin.cgi',
   'cgi-bin/externalGuestLogin.cgi',
   'sonicui/7/externalGuestLogin.cgi',
-  // externalGuestUpdateSession.cgi é o endpoint "irmão" de refresh — se o
-  // login quebrou mas o update sobreviveu, criar uma sessão via update pode
-  // funcionar (alguns firmwares tratam update com sessId desconhecido como
-  // create implícito).
   'externalGuestUpdateSession.cgi',
 ] as const
 

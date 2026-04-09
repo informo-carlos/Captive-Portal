@@ -105,7 +105,10 @@ function OtpPage() {
         // navega pro SW e exibe exatamente o que ele devolveu — se for
         // XML de sucesso, 404, ou qualquer outra coisa, a gente enxerga
         // na tela. Isso é o único jeito de sair do opaque response.
+        // Em 7.3.2+ o caminho oficial é `lhmapi/externalGuest` (confirmado
+        // pelo suporte SonicWall). Legado fica como fallback.
         const primary =
+          urls.find((u) => u.startsWith('http://') && u.endsWith('/lhmapi/externalGuest')) ??
           urls.find((u) => u.startsWith('http://') && u.endsWith('/externalGuestLogin.cgi')) ??
           urls[0]
         // Reporta o que vamos fazer pro backend antes de navegar
