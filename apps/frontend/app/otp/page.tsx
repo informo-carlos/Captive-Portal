@@ -101,17 +101,53 @@ function OtpPage() {
       if (result.lhm_submit) {
         const { urls, body, redirectTo } = result.lhm_submit
         const formBody = new URLSearchParams(body as Record<string, string>)
-        await Promise.allSettled(
-          urls.map((url) =>
-            fetch(url, {
-              method: 'POST',
-              mode: 'no-cors',
-              credentials: 'omit',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: formBody,
-            }),
-          ),
+        // Timeout curto por URL (4s) — mgmtBaseUrl costuma ser inalcançável
+        // da WGUEST e trava o fetch até o timeout do browser. Usamos
+        // AbortController pra não segurar o botão "Verificando...".
+        const attempts = await Promise.all(
+          urls.map(async (url) => {
+            const ctrl = new AbortController()
+            const t = setTimeout(() => ctrl.abort(), 4000)
+            const started = Date.now()
+            try {
+              await fetch(url, {
+                method: 'POST',
+                mode: 'no-cors',
+                credentials: 'omit',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formBody,
+                signal: ctrl.signal,
+              })
+              return { url, ok: true, ms: Date.now() - started }
+            } catch (e) {
+              return {
+                url,
+                ok: false,
+                ms: Date.now() - started,
+                err: (e as Error).name + ':' + (e as Error).message,
+              }
+            } finally {
+              clearTimeout(t)
+            }
+          }),
         )
+        // Log de diagnóstico pro backend antes de redirecionar — assim a
+        // gente vê nos logs do portal quais URLs o browser do cliente
+        // conseguiu atingir. Fire-and-forget, com keepalive pra sobreviver
+        // ao unload da página.
+        try {
+          await fetch(
+            `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attempts, redirectTo }),
+              keepalive: true,
+            },
+          )
+        } catch {
+          /* ignore */
+        }
         window.location.href = redirectTo
         return
       }

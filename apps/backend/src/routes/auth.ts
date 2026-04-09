@@ -299,6 +299,20 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
     return reply.send(responseBody)
   })
+
+  // ─────────────────────────────────────────
+  // POST /auth/lhm-debug
+  // Recebe relatório do browser sobre quais URLs de externalGuestLogin.cgi
+  // responderam (no-cors → opaque) ou falharam (timeout/network). Útil
+  // pra diagnosticar qual path do SW 7.3.2+ aceita o POST. Só loga.
+  // ─────────────────────────────────────────
+  fastify.post('/auth/lhm-debug', async (request, reply) => {
+    request.log.info(
+      { tenantId: request.tenantId, body: request.body },
+      'lhm_browser_debug',
+    )
+    return reply.send({ ok: true })
+  })
 }
 
 export default authRoutes
