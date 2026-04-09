@@ -99,76 +99,47 @@ function OtpPage() {
       // original. Se pelo menos um POST funcionou, o MAC foi autorizado
       // e o redirect passa pelo SW sem reintercepção.
       if (result.lhm_submit) {
-        const { urls, body, redirectTo } = result.lhm_submit
-        // SonicOS 7.3.2+: suporte oficial confirmou que os CGIs foram
-        // removidos e substituidos pelo endpoint REST `lhmapi/externalGuest`.
-        // Como é REST, o contrato provavel é JSON (Content-Type: application/json).
-        // Montamos o payload JSON unindo lhmParams (sessionId, ufi, mgmtBaseUrl,
-        // clientRedirectUrl, req, ssid...) com os campos de auth — sem saber
-        // os nomes exatos, mandamos tudo que o SW ja conhece.
+        const { urls, body } = result.lhm_submit
+        // fetch JSON foi bloqueado por CORS preflight (Failed to fetch).
+        // Workaround: top-level form POST — formulario HTML nao dispara
+        // preflight, o browser navega pro SW e mostra a resposta. Envia
+        // pro novo endpoint `lhmapi/externalGuest` (7.3.2+) com todos os
+        // campos como form-urlencoded. Se o SW rejeitar porque exige
+        // application/json duro, a mensagem de erro dele aparece na tela.
         const primary =
           urls.find((u) => u.startsWith('http://') && u.endsWith('/lhmapi/externalGuest')) ??
           urls[0]
-        const jsonPayload: Record<string, string> = {
-          ...lhmParams,
-          ...(body as Record<string, string>),
-        }
-        let status: number | null = null
-        let responseText = ''
-        let networkError: string | null = null
-        try {
-          const res = await fetch(primary, {
-            method: 'POST',
-            mode: 'cors',
-            credentials: 'omit',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-            body: JSON.stringify(jsonPayload),
-          })
-          status = res.status
-          try {
-            responseText = (await res.text()).slice(0, 2048)
-          } catch {
-            /* ignore */
-          }
-        } catch (e) {
-          networkError = (e as Error).name + ':' + (e as Error).message
-        }
-        // Reporta resultado pro backend pra diagnostico
         try {
           await fetch(
             `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                strategy: 'json-fetch',
-                primary,
-                status,
-                responseText,
-                networkError,
-                payloadKeys: Object.keys(jsonPayload),
-              }),
+              body: JSON.stringify({ strategy: 'top-level-form-lhmapi', primary }),
               keepalive: true,
             },
           )
         } catch {
           /* ignore */
         }
-        // Se o POST funcionou (status 2xx), redireciona pro `req` original.
-        // Caso contrario, mostra erro na tela com o status pra diagnostico.
-        if (status && status >= 200 && status < 300) {
-          window.location.href = redirectTo
-          return
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.enctype = 'application/x-www-form-urlencoded'
+        form.action = primary
+        form.style.display = 'none'
+        const appendField = (k: string, v: string) => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = k
+          input.value = v
+          form.appendChild(input)
         }
-        setError(
-          networkError
-            ? `Falha de rede ao contatar o firewall (${networkError}). Verifique se esta na rede Wi-Fi.`
-            : `Firewall retornou status ${status ?? '?'}. ${responseText.slice(0, 200)}`,
-        )
-        setLoading(false)
+        for (const [k, v] of Object.entries(lhmParams)) appendField(k, v)
+        for (const [k, v] of Object.entries(body as Record<string, string>)) {
+          appendField(k, v)
+        }
+        document.body.appendChild(form)
+        form.submit()
         return
       }
       router.push(`/success?serial=${serial}`)
