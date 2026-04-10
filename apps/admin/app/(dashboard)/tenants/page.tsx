@@ -7,6 +7,7 @@ import type { Pagination } from '@captive-portal/shared'
 import { getTenants, updateTenantStatus, deleteTenant } from '../../../lib/api'
 import { ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
+import { useNotifications } from '../../../lib/notification-context'
 import { TenantModal } from '../../../components/tenant-modal'
 
 type StatusFilter = '' | 'active' | 'inactive'
@@ -15,6 +16,7 @@ export default function TenantsPage() {
   const { hasRole } = useAuth()
   const canEdit = hasRole('admin')
   const canDelete = hasRole('superadmin')
+  const { add: notify } = useNotifications()
 
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 0 })
@@ -64,6 +66,12 @@ export default function TenantsPage() {
     setTogglingStatus(tenant.id)
     try {
       await updateTenantStatus(tenant.id, newStatus)
+      notify({
+        type: 'tenant',
+        action: newStatus === 'active' ? 'tenant_activated' : 'tenant_deactivated',
+        message: `Tenant ${newStatus === 'active' ? 'ativado' : 'desativado'}`,
+        detail: tenant.name,
+      })
       await fetchTenants(pagination.page)
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -79,6 +87,12 @@ export default function TenantsPage() {
     setDeleting(true)
     try {
       await deleteTenant(deleteTarget.id)
+      notify({
+        type: 'tenant',
+        action: 'tenant_deleted',
+        message: 'Tenant deletado',
+        detail: deleteTarget.name,
+      })
       setDeleteTarget(null)
       await fetchTenants(pagination.page)
     } catch (err) {
@@ -147,8 +161,8 @@ export default function TenantsPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Tenants Ecosystem</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-t-primary">Tenants Ecosystem</h1>
+          <p className="mt-1 text-sm text-t-label">
             Gerencie os clientes do captive portal.
           </p>
         </div>
@@ -164,11 +178,11 @@ export default function TenantsPage() {
 
       {/* Filters */}
       <div className="mb-4 flex items-center gap-3">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Status:</label>
+        <label className="text-[11px] font-medium uppercase tracking-wider text-t-label">Status:</label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+          className="rounded-lg border border-t-input bg-t-input px-3 py-1.5 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
         >
           <option value="">Todos</option>
           <option value="active">Ativo</option>
@@ -185,53 +199,53 @@ export default function TenantsPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl glass-card">
-        <table className="min-w-full divide-y divide-white/[0.06]">
-          <thead className="bg-white/[0.02]">
+        <table className="min-w-full divide-y divide-t-default">
+          <thead className="bg-t-thead">
             <tr>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Nome</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Porta</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Status</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Seriais</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Criado em</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Nome</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Porta</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Status</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Seriais</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Criado em</th>
               {canEdit && (
-                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Acoes</th>
+                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Acoes</th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.06]">
+          <tbody className="divide-y divide-t-default">
             {loading ? (
               <tr>
                 <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center">
                   <div className="flex items-center justify-center">
                     <div className="h-6 w-6 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
-                    <span className="ml-2 text-sm text-slate-500">Carregando...</span>
+                    <span className="ml-2 text-sm text-t-label">Carregando...</span>
                   </div>
                 </td>
               </tr>
             ) : tenants.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center text-sm text-slate-500">
+                <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center text-sm text-t-label">
                   Nenhum tenant encontrado.
                 </td>
               </tr>
             ) : (
               tenants.map((tenant) => (
-                <tr key={tenant.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-200">
+                <tr key={tenant.id} className="hover:bg-t-hover-subtle transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-t-secondary">
                     <Link href={`/tenants/${tenant.id}`} className="hover:text-edge-cyan transition-colors">
                       {tenant.name}
                     </Link>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">
+                  <td className="px-6 py-4 text-sm text-t-muted font-mono">
                     {tenant.port}
                   </td>
                   <td className="px-6 py-4">
                     {statusBadge(tenant.status)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-400">
+                  <td className="px-6 py-4 text-sm text-t-muted">
                     {tenant.serials.length}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-400">
+                  <td className="px-6 py-4 text-sm text-t-muted">
                     {new Date(tenant.created_at).toLocaleDateString('pt-BR')}
                   </td>
                   {canEdit && (
@@ -278,22 +292,22 @@ export default function TenantsPage() {
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="flex items-center justify-between border-t border-white/[0.06] px-6 py-3">
-            <p className="text-xs text-slate-500">
+          <div className="flex items-center justify-between border-t border-t-default px-6 py-3">
+            <p className="text-xs text-t-label">
               Mostrando {(pagination.page - 1) * pagination.limit + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => fetchTenants(pagination.page - 1)}
                 disabled={pagination.page <= 1}
-                className="rounded-md border border-white/[0.08] px-3 py-1 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="rounded-md border border-t-input px-3 py-1 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Anterior
               </button>
               <button
                 onClick={() => fetchTenants(pagination.page + 1)}
                 disabled={pagination.page >= pagination.pages}
-                className="rounded-md border border-white/[0.08] px-3 py-1 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="rounded-md border border-t-input px-3 py-1 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Proxima
               </button>
@@ -313,17 +327,17 @@ export default function TenantsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#0d1219] p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-white">Confirmar exclusao</h3>
-            <p className="mt-2 text-sm text-slate-400">
-              Tem certeza que deseja deletar o tenant <strong className="text-white">{deleteTarget.name}</strong>?
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-t-overlay backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-t-primary">Confirmar exclusao</h3>
+            <p className="mt-2 text-sm text-t-muted">
+              Tem certeza que deseja deletar o tenant <strong className="text-t-primary">{deleteTarget.name}</strong>?
               Esta acao nao pode ser desfeita.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.04]"
+                className="rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-muted hover:bg-t-hover"
               >
                 Cancelar
               </button>

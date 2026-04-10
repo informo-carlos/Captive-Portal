@@ -78,8 +78,8 @@ export default function SessionsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Sessoes Wi-Fi</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-t-primary">Sessoes Wi-Fi</h1>
+        <p className="mt-1 text-sm text-t-label">
           Historico de autenticacoes no portal captivo.
         </p>
       </div>
@@ -88,11 +88,11 @@ export default function SessionsPage() {
       <div className="mb-6 flex flex-wrap items-end gap-4">
         {isSuperadmin && (
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Tenant</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => { setTenantId(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -102,31 +102,31 @@ export default function SessionsPage() {
           </div>
         )}
         <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">De</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => { setFrom(e.target.value); setPage(1) }}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Ate</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => { setTo(e.target.value); setPage(1) }}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Telefone</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Telefone</label>
           <input
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setAppliedPhone(phone); setPage(1) } }}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             placeholder="Digite so numeros (ex: 11999994321)"
           />
         </div>
@@ -147,21 +147,21 @@ export default function SessionsPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl glass-card">
-        <table className="min-w-full divide-y divide-white/[0.06]">
-          <thead className="bg-white/[0.02]">
+        <table className="min-w-full divide-y divide-t-default">
+          <thead className="bg-t-thead">
             <tr>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Telefone</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">MAC</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">IP</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Tenant</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Autenticado em</th>
-              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Expira em</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Telefone</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">MAC</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">IP</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Autenticado em</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Expira em</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.06]">
+          <tbody className="divide-y divide-t-default">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-t-label">
                   <div className="flex items-center justify-center gap-2">
                     <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
                     Carregando...
@@ -170,19 +170,19 @@ export default function SessionsPage() {
               </tr>
             ) : sessions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-t-label">
                   Nenhuma sessao encontrada.
                 </td>
               </tr>
             ) : (
               sessions.map((s) => (
-                <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-200 font-mono">{s.phone_masked}</td>
-                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">{s.mac_address}</td>
-                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">{s.ip_address}</td>
-                  <td className="px-6 py-4 text-sm text-slate-400">{s.tenant.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-400">{formatDate(s.auth_at)}</td>
-                  <td className="px-6 py-4 text-sm text-slate-400">{formatDate(s.expires_at)}</td>
+                <tr key={s.id} className="hover:bg-t-hover-subtle transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-t-secondary font-mono">{s.phone_masked}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted font-mono">{s.mac_address}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted font-mono">{s.ip_address}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{s.tenant.name}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{formatDate(s.auth_at)}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{formatDate(s.expires_at)}</td>
                 </tr>
               ))
             )}
@@ -193,21 +193,21 @@ export default function SessionsPage() {
       {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-t-label">
             Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={pagination.page <= 1}
-              className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
+              className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
             >
               Anterior
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
               disabled={pagination.page >= pagination.pages}
-              className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
+              className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
             >
               Proxima
             </button>

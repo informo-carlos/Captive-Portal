@@ -52,9 +52,9 @@ export function Sidebar() {
   const { hasRole } = useAuth()
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-white/[0.06] bg-[#080c14]">
+    <aside className="flex h-screen w-64 flex-col border-r border-t-default bg-t-bg2">
       {/* Logo area */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/[0.06] px-5">
+      <div className="flex h-16 items-center gap-3 border-b border-t-default px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-edge-cyan/10">
           <svg className="h-4 w-4 text-edge-cyan" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -64,8 +64,8 @@ export function Sidebar() {
           </svg>
         </div>
         <div>
-          <span className="text-sm font-bold tracking-wide text-white">4EDGE</span>
-          <p className="text-[10px] uppercase tracking-widest text-slate-500">Global Node</p>
+          <span className="text-sm font-bold tracking-wide text-t-primary">4EDGE</span>
+          <p className="text-[10px] uppercase tracking-widest text-t-label">Global Node</p>
         </div>
       </div>
 
@@ -83,7 +83,7 @@ export function Sidebar() {
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-edge-cyan/10 text-edge-cyan'
-                  : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
+                  : 'text-t-muted hover:bg-t-hover hover:text-t-secondary'
               }`}
             >
               {ICONS[item.icon]}
@@ -94,10 +94,10 @@ export function Sidebar() {
       </nav>
 
       {/* Node status */}
-      <div className="border-t border-white/[0.06] px-5 py-4">
+      <div className="border-t border-t-default px-5 py-4">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-edge-cyan animate-pulse" />
-          <p className="text-[10px] uppercase tracking-widest text-slate-500">Node Online</p>
+          <p className="text-[10px] uppercase tracking-widest text-t-label">Node Online</p>
         </div>
       </div>
     </aside>

@@ -4,6 +4,56 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 
+/* ===== Theme Variables ===== */
+:root,
+[data-theme="light"] {
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #f3f4f6;
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-hover-subtle: rgba(0, 0, 0, 0.02);
+  --bg-thead: rgba(0, 0, 0, 0.02);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-label: #94a3b8;
+  --text-placeholder: #94a3b8;
+  --border-default: #e2e8f0;
+  --border-input: #cbd5e1;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --modal-overlay: rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+  --select-bg: #ffffff;
+  --select-text: #334155;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #080c14;
+  --bg-card: #0d1219;
+  --bg-input: rgba(255, 255, 255, 0.04);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-hover-subtle: rgba(255, 255, 255, 0.02);
+  --bg-thead: rgba(255, 255, 255, 0.02);
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-label: #64748b;
+  --text-placeholder: #475569;
+  --border-default: rgba(255, 255, 255, 0.06);
+  --border-input: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --select-bg: #0d1219;
+  --select-text: #e2e8f0;
+}
+
 /* Login background animation */
 @keyframes float {
   0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
@@ -44,8 +94,8 @@
 
 /* Glassmorphism card */
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   backdrop-filter: blur(12px);
 }
 
@@ -59,16 +109,16 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* Select dropdown dark styling */
+/* Select dropdown styling */
 select option {
-  background: #0d1219;
-  color: #e2e8f0;
+  background: var(--select-bg);
+  color: var(--select-text);
 }

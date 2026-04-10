@@ -95,8 +95,8 @@ export default function AuditPage() {
       <div>
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Audit Log</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-t-primary">Audit Log</h1>
+          <p className="mt-1 text-sm text-t-label">
             Registro de todas as acoes administrativas.
           </p>
         </div>
@@ -104,11 +104,11 @@ export default function AuditPage() {
         {/* Filters */}
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Acao</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Acao</label>
             <select
               value={action}
               onChange={(e) => { setAction(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todas</option>
               <option value="login">Login</option>
@@ -123,21 +123,21 @@ export default function AuditPage() {
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">De</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">De</label>
             <input
               type="date"
               value={from}
               onChange={(e) => { setFrom(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Ate</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Ate</label>
             <input
               type="date"
               value={to}
               onChange={(e) => { setTo(e.target.value); setPage(1) }}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             />
           </div>
         </div>
@@ -151,20 +151,20 @@ export default function AuditPage() {
 
         {/* Table */}
         <div className="overflow-hidden rounded-xl glass-card">
-          <table className="min-w-full divide-y divide-white/[0.06]">
-            <thead className="bg-white/[0.02]">
+          <table className="min-w-full divide-y divide-t-default">
+            <thead className="bg-t-thead">
               <tr>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Data/Hora</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Usuario</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Acao</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Detalhes</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">IP</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Data/Hora</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Usuario</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Acao</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Detalhes</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">IP</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.06]">
+            <tbody className="divide-y divide-t-default">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
                       Carregando...
@@ -173,23 +173,23 @@ export default function AuditPage() {
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
                     Nenhum registro encontrado.
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4 text-sm text-slate-400 whitespace-nowrap">{formatDate(log.created_at)}</td>
+                  <tr key={log.id} className="hover:bg-t-hover-subtle transition-colors">
+                    <td className="px-6 py-4 text-sm text-t-muted whitespace-nowrap">{formatDate(log.created_at)}</td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-200">{log.user.name}</div>
-                      <div className="text-[10px] text-slate-500">{log.user.email}</div>
+                      <div className="text-sm font-medium text-t-secondary">{log.user.name}</div>
+                      <div className="text-[10px] text-t-label">{log.user.email}</div>
                     </td>
                     <td className="px-6 py-4">{getActionBadge(log.action)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-400 max-w-xs truncate" title={formatPayload(log.payload)}>
+                    <td className="px-6 py-4 text-sm text-t-muted max-w-xs truncate" title={formatPayload(log.payload)}>
                       {formatPayload(log.payload)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{log.ip_address}</td>
+                    <td className="px-6 py-4 text-sm text-t-muted font-mono">{log.ip_address}</td>
                   </tr>
                 ))
               )}
@@ -200,21 +200,21 @@ export default function AuditPage() {
         {/* Pagination */}
         {pagination.pages > 1 && (
           <div className="mt-4 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-t-label">
               Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={pagination.page <= 1}
-                className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
+                className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
               >
                 Anterior
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
                 disabled={pagination.page >= pagination.pages}
-                className="rounded-md border border-white/[0.08] px-3 py-1.5 text-xs text-slate-400 hover:bg-white/[0.04] disabled:opacity-50 transition-colors"
+                className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
               >
                 Proxima
               </button>

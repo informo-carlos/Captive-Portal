@@ -6,6 +6,7 @@ import { RequireRole } from '../../../components/require-role'
 import { UserModal } from '../../../components/user-modal'
 import { getUsers, deleteUser, ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
+import { useNotifications } from '../../../lib/notification-context'
 
 const ROLE_BADGES: Record<string, { label: string; className: string }> = {
   superadmin: { label: 'Superadmin', className: 'bg-purple-500/10 text-purple-400 border border-purple-500/20' },
@@ -15,6 +16,7 @@ const ROLE_BADGES: Record<string, { label: string; className: string }> = {
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth()
+  const { add: notify } = useNotifications()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,7 +48,14 @@ export default function UsersPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
+      const deleted = users.find((u) => u.id === id)
       await deleteUser(id)
+      notify({
+        type: 'user',
+        action: 'user_deleted',
+        message: 'Usuario deletado',
+        detail: deleted?.name || id,
+      })
       setConfirmDeleteId(null)
       fetchUsers()
     } catch (err) {
@@ -77,8 +86,8 @@ export default function UsersPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Usuarios Admin</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-2xl font-bold text-t-primary">Usuarios Admin</h1>
+            <p className="mt-1 text-sm text-t-label">
               Gerencie os usuarios com acesso ao painel.
             </p>
           </div>
@@ -99,20 +108,20 @@ export default function UsersPage() {
 
         {/* Table */}
         <div className="overflow-hidden rounded-xl glass-card">
-          <table className="min-w-full divide-y divide-white/[0.06]">
-            <thead className="bg-white/[0.02]">
+          <table className="min-w-full divide-y divide-t-default">
+            <thead className="bg-t-thead">
               <tr>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Nome</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Email</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Perfil</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Ultimo login</th>
-                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Acoes</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Nome</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Email</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Perfil</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Ultimo login</th>
+                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Acoes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.06]">
+            <tbody className="divide-y divide-t-default">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
                       Carregando...
@@ -121,7 +130,7 @@ export default function UsersPage() {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
                     Nenhum usuario encontrado.
                   </td>
                 </tr>
@@ -131,20 +140,20 @@ export default function UsersPage() {
                   const isSelf = currentUser?.id === u.id
 
                   return (
-                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-slate-200">
+                    <tr key={u.id} className="hover:bg-t-hover-subtle transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-t-secondary">
                         {u.name}
                         {isSelf && (
-                          <span className="ml-2 text-[10px] text-slate-500">(voce)</span>
+                          <span className="ml-2 text-[10px] text-t-label">(voce)</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-400">{u.email}</td>
+                      <td className="px-6 py-4 text-sm text-t-muted">{u.email}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${badge.className}`}>
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-400">
+                      <td className="px-6 py-4 text-sm text-t-muted">
                         {formatDate(u.last_login)}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -159,7 +168,7 @@ export default function UsersPage() {
                             <>
                               {confirmDeleteId === u.id ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="text-[10px] text-slate-500">Confirmar?</span>
+                                  <span className="text-[10px] text-t-label">Confirmar?</span>
                                   <button
                                     onClick={() => handleDelete(u.id)}
                                     disabled={deletingId === u.id}
@@ -169,7 +178,7 @@ export default function UsersPage() {
                                   </button>
                                   <button
                                     onClick={() => setConfirmDeleteId(null)}
-                                    className="rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-white/[0.04] transition-colors"
+                                    className="rounded-md px-2 py-1 text-xs text-t-label hover:bg-t-hover transition-colors"
                                   >
                                     Nao
                                   </button>

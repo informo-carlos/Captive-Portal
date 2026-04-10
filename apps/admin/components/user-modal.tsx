@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { AdminUser, AdminRole, CreateUserRequest, UpdateUserRequest } from '@captive-portal/shared'
 import { createUser, updateUser, ApiRequestError } from '../lib/api'
+import { useNotifications } from '../lib/notification-context'
 
 interface UserModalProps {
   user: AdminUser | null
@@ -25,10 +26,11 @@ const EMPTY_FORM: FormData = {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-edge-cyan/40'
+  'w-full rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40'
 
 export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   const isEditing = !!user
+  const { add: notify } = useNotifications()
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -84,6 +86,12 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           data.password = form.password.trim()
         }
         await updateUser(user!.id, data)
+        notify({
+          type: 'user',
+          action: 'user_updated',
+          message: 'Usuario atualizado',
+          detail: `${form.name.trim()} (${form.role})`,
+        })
       } else {
         const data: CreateUserRequest = {
           name: form.name.trim(),
@@ -92,6 +100,12 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           role: form.role,
         }
         await createUser(data)
+        notify({
+          type: 'user',
+          action: 'user_created',
+          message: 'Novo usuario criado',
+          detail: `${form.name.trim()} (${form.role})`,
+        })
       }
       onSuccess()
     } catch (err) {
@@ -109,16 +123,16 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm pt-10 pb-10">
-      <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#0d1219] shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10">
+      <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex items-center justify-between border-b border-t-default px-6 py-4">
+          <h2 className="text-lg font-semibold text-t-primary">
             {isEditing ? 'Editar usuario' : 'Novo usuario'}
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-t-label hover:text-t-secondary transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -135,7 +149,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           )}
 
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Nome *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Nome *</label>
             <input
               type="text"
               value={form.name}
@@ -146,7 +160,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Email *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Email *</label>
             <input
               type="email"
               value={form.email}
@@ -157,9 +171,9 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
               Senha {isEditing ? '' : '*'}
-              {isEditing && <span className="text-slate-600 normal-case">(deixe vazio para manter)</span>}
+              {isEditing && <span className="text-t-placeholder normal-case">(deixe vazio para manter)</span>}
             </label>
             <input
               type="password"
@@ -171,7 +185,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Perfil *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Perfil *</label>
             <select
               value={form.role}
               onChange={(e) => setField('role', e.target.value)}
@@ -184,11 +198,11 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-white/[0.06] pt-4">
+          <div className="flex justify-end gap-3 border-t border-t-default pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.04] transition-colors"
+              className="rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-muted hover:bg-t-hover transition-colors"
             >
               Cancelar
             </button>

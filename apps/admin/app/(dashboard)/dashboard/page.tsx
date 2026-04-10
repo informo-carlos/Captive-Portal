@@ -80,8 +80,8 @@ export default function DashboardPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">System Overview</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-t-primary">System Overview</h1>
+        <p className="mt-1 text-sm text-t-label">
           Telemetria e metricas de autenticacao Wi-Fi.
         </p>
       </div>
@@ -89,30 +89,30 @@ export default function DashboardPage() {
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">De</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Ate</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         {isSuperadmin && (
           <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Tenant</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -144,8 +144,8 @@ export default function DashboardPage() {
                 key={card.label}
                 className="glass-card rounded-xl p-5"
               >
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{card.label}</p>
-                <p className="mt-2 text-3xl font-bold text-white">{card.value}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">{card.label}</p>
+                <p className="mt-2 text-3xl font-bold text-t-primary">{card.value}</p>
                 <div className="mt-3 h-px bg-gradient-to-r from-edge-cyan/30 to-transparent" />
               </div>
             ))}
@@ -153,13 +153,13 @@ export default function DashboardPage() {
 
           {/* Chart */}
           <div className="glass-card rounded-xl p-6">
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
               Sessoes por dia
             </h2>
             {summary.by_day.length > 0 ? (
               <SessionsChart data={summary.by_day} />
             ) : (
-              <p className="py-8 text-center text-sm text-slate-500">
+              <p className="py-8 text-center text-sm text-t-label">
                 Nenhum dado para o periodo selecionado.
               </p>
             )}
@@ -168,25 +168,25 @@ export default function DashboardPage() {
           {/* By Tenant Table (superadmin) */}
           {isSuperadmin && summary.by_tenant.length > 0 && (
             <div className="mt-6 overflow-hidden rounded-xl glass-card">
-              <div className="px-6 py-4 border-b border-white/[0.06]">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <div className="px-6 py-4 border-b border-t-default">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">
                   Por tenant
                 </h2>
               </div>
-              <table className="min-w-full divide-y divide-white/[0.06]">
-                <thead className="bg-white/[0.02]">
+              <table className="min-w-full divide-y divide-t-default">
+                <thead className="bg-t-thead">
                   <tr>
-                    <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500">Tenant</th>
-                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Sessoes</th>
-                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-slate-500">Usuarios unicos</th>
+                    <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
+                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Sessoes</th>
+                    <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Usuarios unicos</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.06]">
+                <tbody className="divide-y divide-t-default">
                   {summary.by_tenant.map((t) => (
-                    <tr key={t.tenant_id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-3 text-sm font-medium text-slate-200">{t.tenant_name}</td>
-                      <td className="px-6 py-3 text-right text-sm text-slate-400">{t.sessions.toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-3 text-right text-sm text-slate-400">{t.unique_phones.toLocaleString('pt-BR')}</td>
+                    <tr key={t.tenant_id} className="hover:bg-t-hover-subtle transition-colors">
+                      <td className="px-6 py-3 text-sm font-medium text-t-secondary">{t.tenant_name}</td>
+                      <td className="px-6 py-3 text-right text-sm text-t-muted">{t.sessions.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-3 text-right text-sm text-t-muted">{t.unique_phones.toLocaleString('pt-BR')}</td>
                     </tr>
                   ))}
                 </tbody>
