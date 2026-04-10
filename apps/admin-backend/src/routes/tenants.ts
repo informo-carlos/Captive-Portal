@@ -129,7 +129,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     const result = await fastify.db.query(
       `SELECT t.id, t.name, t.port, t.status, t.sonicwall_config, t.zenvia_token,
               t.zenvia_sender, t.provisioning_error, t.container_id, t.provisioned_at,
-              t.session_duration_minutes, t.created_at, t.updated_at,
+              t.session_duration_minutes, t.branding, t.created_at, t.updated_at,
               COALESCE(
                 (SELECT json_agg(json_build_object('id', ts.id, 'serial', ts.serial, 'role', ts.role))
                  FROM tenant_serials ts WHERE ts.tenant_id = t.id), '[]'
@@ -156,6 +156,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       container_id: row['container_id'] ?? null,
       provisioned_at: row['provisioned_at'] ?? null,
       session_duration_minutes: row['session_duration_minutes'],
+      branding: row['branding'] || {},
       sessions_count: row['sessions_count'],
       created_at: row['created_at'],
     }))
@@ -215,6 +216,15 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           zenvia_token: { type: 'string', minLength: 1 },
           zenvia_sender: { type: 'string', minLength: 1, maxLength: 64 },
           session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440, default: 480 },
+          branding: {
+            type: 'object',
+            properties: {
+              logo_url: { type: 'string', maxLength: 2048 },
+              primary_color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+              secondary_color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+              welcome_text: { type: 'string', maxLength: 500 },
+            },
+          },
         },
       },
     },
@@ -227,6 +237,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       zenvia_token: string
       zenvia_sender: string
       session_duration_minutes?: number
+      branding?: { logo_url?: string; primary_color?: string; secondary_color?: string; welcome_text?: string }
     }
 
     // Valida campos obrigatórios conforme o modo (rest exige host/user/pass).
@@ -285,9 +296,9 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       // Docker e o bloco nginx, e mover pra 'active'. Em caso de falha, vai
       // pra 'failed' com a mensagem em provisioning_error.
       const insertResult = await client.query(
-        `INSERT INTO tenants (name, port, status, sonicwall_config, zenvia_token, zenvia_sender, session_duration_minutes)
-         VALUES ($1, $2, 'provisioning', $3, $4, $5, $6)
-         RETURNING id, name, port, status, session_duration_minutes, created_at`,
+        `INSERT INTO tenants (name, port, status, sonicwall_config, zenvia_token, zenvia_sender, session_duration_minutes, branding)
+         VALUES ($1, $2, 'provisioning', $3, $4, $5, $6, $7)
+         RETURNING id, name, port, status, session_duration_minutes, branding, created_at`,
         [
           body.name,
           body.port,
@@ -295,6 +306,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           encryptedZenvia,
           encryptedSender,
           body.session_duration_minutes ?? 480,
+          JSON.stringify(body.branding || {}),
         ],
       )
       const tenant = insertResult.rows[0]
@@ -327,6 +339,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         status: tenant.status,
         serials: serialRows,
         session_duration_minutes: tenant.session_duration_minutes,
+        branding: tenant.branding || {},
         created_at: tenant.created_at,
       })
     } catch (err) {
@@ -387,6 +400,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       container_id: row.container_id ?? null,
       provisioned_at: row.provisioned_at ?? null,
       session_duration_minutes: row.session_duration_minutes,
+      branding: row.branding || {},
       stats: {
         total_sessions: stats.total_sessions,
         sessions_last_30d: stats.sessions_last_30d,
@@ -435,6 +449,15 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           zenvia_token: { type: 'string' },
           zenvia_sender: { type: 'string', minLength: 1, maxLength: 64 },
           session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440 },
+          branding: {
+            type: 'object',
+            properties: {
+              logo_url: { type: 'string', maxLength: 2048 },
+              primary_color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+              secondary_color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+              welcome_text: { type: 'string', maxLength: 500 },
+            },
+          },
         },
       },
     },
@@ -519,6 +542,13 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         changes['zenvia_sender'] = 'updated'
       }
 
+      // branding — JSONB direto, sem criptografia
+      if (body['branding'] !== undefined) {
+        updates.push(`branding = $${paramIdx++}`)
+        values.push(JSON.stringify(body['branding']))
+        changes['branding'] = body['branding']
+      }
+
       // serials — se enviados, substituir
       if (body['serials'] !== undefined) {
         const serials = body['serials'] as TenantSerial[]
@@ -591,6 +621,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         serials: row.serials,
         sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
         session_duration_minutes: row.session_duration_minutes,
+        branding: row.branding || {},
         created_at: row.created_at,
         updated_at: row.updated_at,
       })

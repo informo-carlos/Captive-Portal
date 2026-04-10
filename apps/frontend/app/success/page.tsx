@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useBranding } from '../../components/BrandingProvider'
 
 export default function SuccessPageWrapper() {
   return (
@@ -13,6 +14,7 @@ export default function SuccessPageWrapper() {
 
 function SuccessPage() {
   const searchParams = useSearchParams()
+  const { logoUrl } = useBranding()
   const [closing, setClosing] = useState(false)
 
   const expiresInSeconds = parseInt(searchParams.get('expires_in') || '0', 10)
@@ -53,12 +55,16 @@ function SuccessPage() {
 
         <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
           <div className="flex flex-col items-center text-center">
-            {/* Checkmark */}
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-edge-cyan/10 border border-edge-cyan/20">
-              <svg className="h-10 w-10 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+            {/* Logo or Checkmark */}
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-16 w-auto max-w-[200px] object-contain" />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-edge-cyan/10 border border-edge-cyan/20">
+                <svg className="h-10 w-10 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            )}
 
             <h1 className="mt-4 text-2xl font-bold text-white">
               Acesso liberado!

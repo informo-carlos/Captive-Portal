@@ -11,7 +11,7 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        "edge-cyan": "#00e5c3",
+        "edge-cyan": "rgb(var(--color-primary-rgb, 0 229 195) / <alpha-value>)",
         "edge-dark": "#0a0e17",
       },
       fontFamily: {

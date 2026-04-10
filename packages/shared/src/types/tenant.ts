@@ -4,6 +4,13 @@ export interface TenantSerial {
   role: 'primary' | 'secondary'
 }
 
+export interface TenantBranding {
+  logo_url?: string
+  primary_color?: string    // hex string e.g. "#00e5c3"
+  secondary_color?: string  // hex string e.g. "#0a0e17"
+  welcome_text?: string     // texto de boas-vindas na tela de login
+}
+
 export interface SonicwallConfig {
   /** Modo de integração — define quais campos são obrigatórios. */
   mode: 'rest' | 'lhm'
@@ -42,6 +49,7 @@ export interface Tenant {
   /** ID do container Docker do tenant (preenchido pelo worker) */
   container_id?: string | null
   session_duration_minutes?: number
+  branding?: TenantBranding
   sessions_count?: number
   created_at: string
   updated_at?: string
@@ -64,6 +72,7 @@ export interface CreateTenantRequest {
   zenvia_token: string
   zenvia_sender: string
   session_duration_minutes?: number
+  branding?: TenantBranding
 }
 
 export interface UpdateTenantRequest {
@@ -73,4 +82,5 @@ export interface UpdateTenantRequest {
   zenvia_token?: string
   zenvia_sender?: string
   session_duration_minutes?: number
+  branding?: TenantBranding
 }

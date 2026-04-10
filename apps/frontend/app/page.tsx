@@ -3,6 +3,7 @@
 import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
+import { useBranding } from '../components/BrandingProvider'
 import { ApiRequestError, requestOtp } from '../lib/api'
 import { extractLhmParams, serializeLhmParams } from '../lib/lhm-params'
 
@@ -17,6 +18,7 @@ export default function PhonePageWrapper() {
 function PhonePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { logoUrl, secondaryColor, welcomeText } = useBranding()
   // SonicWall TZ570 manda o serial como `ufi` (Unique Firewall Identifier).
   // Aceitamos ambos os nomes pra cobrir diferenças entre firmwares.
   const serial = searchParams.get('serial') || searchParams.get('ufi') || ''
@@ -114,19 +116,23 @@ function PhonePage() {
         <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
           {/* Logo */}
           <div className="mb-5 flex flex-col items-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
-              <svg className="h-7 w-7 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"
-                />
-              </svg>
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-14 w-auto max-w-[200px] object-contain" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
+                <svg className="h-7 w-7 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"
+                  />
+                </svg>
+              </div>
+            )}
             <h1 className="mt-3 text-xl font-bold text-white">Wi-Fi Login</h1>
             <p className="mt-1 text-center text-sm text-slate-500">
-              Insira seus dados para receber o codigo de acesso
+              {welcomeText || 'Insira seus dados para receber o codigo de acesso'}
             </p>
           </div>
 
@@ -174,7 +180,8 @@ function PhonePage() {
             <button
               type="submit"
               disabled={loading || !!validationError || name.trim().length < 2}
-              className="w-full rounded-xl bg-gradient-to-r from-edge-cyan to-teal-400 py-3 text-base font-bold text-[#0a0e17] transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 focus:ring-offset-[#0a0e17] disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-xl bg-edge-cyan py-3 text-base font-bold transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ color: secondaryColor }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

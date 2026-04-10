@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { BrandingProvider } from '../components/BrandingProvider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-screen bg-[#0a0e17] font-roboto antialiased">{children}</body>
+      <body className="min-h-screen font-roboto antialiased" style={{ backgroundColor: 'var(--color-bg, #0a0e17)' }}>
+        <BrandingProvider>{children}</BrandingProvider>
+      </body>
     </html>
   )
 }

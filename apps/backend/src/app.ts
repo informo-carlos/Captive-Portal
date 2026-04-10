@@ -6,6 +6,7 @@ import redisPlugin from './plugins/redis'
 import serialGuardPlugin from './plugins/serial-guard'
 import healthRoutes from './routes/health'
 import authRoutes from './routes/auth'
+import brandingRoutes from './routes/branding'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -33,6 +34,7 @@ async function buildApp() {
 
   // Rotas
   await fastify.register(healthRoutes)
+  await fastify.register(brandingRoutes)
   await fastify.register(authRoutes)
 
   return fastify

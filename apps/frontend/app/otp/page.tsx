@@ -4,6 +4,7 @@ import { Suspense, useState, useCallback, useMemo, useRef, useEffect } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
+import { useBranding } from '../../components/BrandingProvider'
 import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
 import { deserializeLhmParams, isValidLhmRedirectUrl } from '../../lib/lhm-params'
 
@@ -18,6 +19,7 @@ export default function OtpPageWrapper() {
 function OtpPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { logoUrl, secondaryColor } = useBranding()
   const serial = searchParams.get('serial') || ''
   const phone = searchParams.get('phone') || ''
   const mac = searchParams.get('mac') || ''
@@ -178,16 +180,20 @@ function OtpPage() {
         <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
           {/* Header */}
           <div className="mb-6 flex flex-col items-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
-              <svg className="h-7 w-7 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-14 w-auto max-w-[200px] object-contain" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
+                <svg className="h-7 w-7 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+            )}
             <h1 className="mt-3 text-xl font-bold text-white">Verificacao</h1>
             <p className="mt-1 text-center text-sm text-slate-500">
               Enviamos um codigo para{' '}
@@ -223,7 +229,8 @@ function OtpPage() {
               <button
                 type="submit"
                 disabled={loading || !otpFull}
-                className="w-full rounded-xl bg-gradient-to-r from-edge-cyan to-teal-400 py-3 text-base font-bold text-[#0a0e17] transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 focus:ring-offset-[#0a0e17] disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-xl bg-edge-cyan py-3 text-base font-bold transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ color: secondaryColor }}
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
