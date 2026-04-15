@@ -22,10 +22,24 @@ export interface ReleaseAccessParams {
   lhmParams?: Record<string, string>
 }
 
+export interface LhmBrowserSubmit {
+  /** URLs candidatas pro POST (ordem de preferência). */
+  urls: string[]
+  /** Body JSON já serializado; frontend envia como text/plain (simple request). */
+  body: string
+  /** Pra onde redirecionar o guest após disparar os POSTs. */
+  redirectTo: string
+}
+
 export interface ReleaseAccessResult {
   success: boolean
   raw: unknown
   mode: 'rest' | 'lhm'
+  /**
+   * Presente apenas em modo LHM com estratégia browser-submit: backend
+   * monta o payload, frontend (dentro da LAN) dispara o POST.
+   */
+  browserSubmit?: LhmBrowserSubmit
 }
 
 export interface SonicwallConfig {

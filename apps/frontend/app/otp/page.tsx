@@ -92,12 +92,29 @@ function OtpPage() {
 
     try {
       const result = await verifyOtp({ phone, otp }, serial)
-      // Em modo LHM o backend já falou com o firewall (POST pro
-      // /lhmapi/externalAAAGuest) e devolveu uma URL de redirect
-      // (`req` original ou probe de captive). Em modo REST a resposta
-      // vem sem redirect_url e a UI mostra a tela de sucesso normal.
-      if (result.redirect_url) {
-        window.location.href = result.redirect_url
+      // Em modo LHM o backend devolve `lhm_submit` com URLs candidatas +
+      // body JSON. A VPS não tem rota pro firewall (IP privado da LAN),
+      // então o BROWSER do guest — que está na LAN e alcança o SW — dispara
+      // o POST final. text/plain + no-cors evita preflight CORS (simple
+      // request); keepalive garante que o request sai mesmo após navigation.
+      // JS não lê a resposta (no-cors = opaque), a gente confia no SW.
+      if (result.lhm_submit) {
+        const { urls, body, redirectTo } = result.lhm_submit
+        await Promise.allSettled(
+          urls.map((url) =>
+            fetch(url, {
+              method: 'POST',
+              mode: 'no-cors',
+              credentials: 'omit',
+              headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+              body,
+              keepalive: true,
+            }).catch(() => undefined),
+          ),
+        )
+        // Pequeno delay pra o SW processar antes do redirect
+        await new Promise((r) => setTimeout(r, 500))
+        window.location.href = redirectTo
         return
       }
       router.push(`/success?serial=${serial}`)

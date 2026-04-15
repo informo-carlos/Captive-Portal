@@ -87,16 +87,25 @@ export interface VerifyOtpParams {
   otp: string
 }
 
+/**
+ * Payload que o backend devolve em modo LHM pra o browser do guest (que
+ * está DENTRO da LAN do SW) disparar o POST final em /lhmapi/externalAAAGuest.
+ * A VPS não tem rota pro mgmtBaseUrl do SW, então o browser faz o trabalho.
+ */
+export interface LhmBrowserSubmit {
+  urls: string[]
+  body: string
+  redirectTo: string
+}
+
 export interface VerifyOtpResponse {
   message: string
   expires_in: number
   /**
-   * Em modo LHM, o backend já falou com o SonicWall (POST pro
-   * /lhmapi/externalAAAGuest) e o MAC já foi autorizado. Este campo traz a
-   * URL original (`req`) pra onde o browser deve redirecionar. Em modo REST
-   * o campo vem vazio e a UI mostra a tela de sucesso.
+   * Em modo LHM o backend devolve aqui o payload pro browser disparar
+   * o POST no SonicWall. Em modo REST vem vazio e a UI mostra /success.
    */
-  redirect_url?: string
+  lhm_submit?: LhmBrowserSubmit
 }
 
 export function verifyOtp(

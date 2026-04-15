@@ -7,27 +7,41 @@
 //      query params: ssid, sessionId, ip, mac, ufi, mgmtBaseUrl,
 //      clientRedirectUrl, req (e opcionalmente hmac).
 //   3. Portal captura, manda OTP, valida.
-//   4. Backend (ESTE código) faz POST pro firewall:
+//   4. Precisa chegar no firewall:
 //        POST {mgmtBaseUrl}/lhmapi/externalAAAGuest
 //        Content-Type: application/json
-//        { info: { action: 1, sessId, userName, sessionLifetime,
-//                  idleTimeout, maxRx, maxTx, quotaCycleType, ... } }
-//   5. SonicWall responde { code: "50", message: "..." } se autorizou.
-//   6. Backend retorna success pro frontend → frontend redireciona guest
-//      pra URL `req` original.
+//        { info: { action: 1, sessId, userName, sessionLifetime, ... } }
+//   5. SonicWall responde { code: "50", ... } se autorizou.
 //
 // IMPORTANTE: o endpoint é `externalAAAGuest` (AAA = Authentication,
 // Authorization, Accounting) — NÃO `externalGuest`. Os CGIs antigos
-// (externalGuestLogin.cgi etc.) foram removidos no SonicOS 7.3.2.
+// (externalGuestLogin.cgi) foram removidos no SonicOS 7.3.2.
 //
-// Requisito de rede: o backend precisa alcançar {mgmtBaseUrl} — geralmente
-// IP privado do SW. Em produção isso exige VPN/túnel entre VPS e LAN do
-// cliente. Sem credenciais de admin do SW — só rota IP.
+// ── ESTRATÉGIA ATUAL: browser-submit ────────────────────────────────
 //
-// Limitações conhecidas do SonicOS 7.3.2:
+// O backend NÃO faz o POST. Nossa VPS está na internet pública, o
+// mgmtBaseUrl do SW é IP privado da LAN do cliente — sem VPN a rota
+// simplesmente não existe. Em vez disso:
+//
+//   a. Backend monta `info` + HMAC (chave secreta fica só no backend).
+//   b. Backend devolve pro frontend um payload `LhmBrowserSubmit` com as
+//      URLs candidatas + body pronto (JSON stringified).
+//   c. Frontend (browser do guest, que ESTÁ na LAN) dispara
+//      `fetch(url, { method:'POST', mode:'no-cors', body })` em paralelo
+//      pras URLs candidatas. Content-Type=text/plain pra evitar preflight
+//      CORS (simple request).
+//   d. Frontend espera ~500ms e redireciona pro `req` original.
+//
+// Limitações conhecidas:
+//   - Com `mode:'no-cors'`, JS NÃO lê a resposta. Se o SW rejeitar
+//     (code != "50"), o guest continua bloqueado e a gente não sabe.
+//   - HTTPS no mgmtBaseUrl usa cert self-signed → browser rejeita
+//     silenciosamente. Usamos clientRedirectUrl (HTTP) primeiro como
+//     fallback sem cert issue.
+//
+// Limitações do SonicOS 7.3.2 pro payload:
 //   - sessionLifetime ∈ (0, 9999]
-//   - idleTimeout ∈ (0, sessionLifetime]
-//   - cycleSessionLifeTime ∈ [0, 9999]
+//   - idleTimeout ∈ [60, sessionLifetime)
 //   - HMAC pode ser habilitado na UI (Zone Settings → Message Authentication)
 //
 // Ver: docs/lhm-protocol-tz570.md
@@ -54,7 +68,6 @@ export const KNOWN_LHM_PARAM_NAMES = [
 ] as const
 
 const LHM_API_PATH = 'lhmapi/externalAAAGuest'
-const POST_TIMEOUT_MS = 10_000
 
 // Limites da backend API em SonicOS 7.3.2.
 const MAX_SESSION_LIFETIME_SEC = 9999
@@ -78,11 +91,6 @@ interface LhmInfo {
   cycleMaxTx: string
   hmac?: string
   passwd?: string
-}
-
-interface LhmResponse {
-  code?: string
-  message?: string
 }
 
 function normalizeBaseUrl(raw: string): string | null {
@@ -155,14 +163,24 @@ export async function releaseAccessLhm(
     }
   }
 
+  // Candidatos em ordem de preferência:
+  //   1. clientRedirectUrl — HTTP, sem cert issue (provavelmente IP do
+  //      X0/LAN do SW em porta 8080).
+  //   2. mgmtBaseUrl — HTTPS self-signed (browser deve rejeitar mas a
+  //      gente dispara mesmo assim, zero custo).
+  const candidates: string[] = []
+  const clientRedirectUrl = normalizeBaseUrl(lhm['clientRedirectUrl'] ?? '')
   const mgmtBaseUrl = normalizeBaseUrl(mgmtBaseUrlRaw)
-  if (!mgmtBaseUrl) {
-    logger.error({ mgmtBaseUrlRaw }, 'lhm_invalid_mgmt_base_url')
+  if (clientRedirectUrl) candidates.push(`${clientRedirectUrl}/${LHM_API_PATH}`)
+  if (mgmtBaseUrl) candidates.push(`${mgmtBaseUrl}/${LHM_API_PATH}`)
+
+  if (candidates.length === 0) {
+    logger.error({ mgmtBaseUrlRaw }, 'lhm_no_valid_urls')
     return {
       success: false,
       raw: {
         error: 'invalid_mgmt_base_url',
-        message: 'mgmtBaseUrl inválido no redirect do SonicWall.',
+        message: 'mgmtBaseUrl/clientRedirectUrl inválidos no redirect do SonicWall.',
       },
       mode: 'lhm',
     }
@@ -191,92 +209,48 @@ export async function releaseAccessLhm(
   }
 
   // HMAC opcional — só preencher se o firewall tiver Message Authentication
-  // habilitado (configurado via env LHM_HMAC_KEY/LHM_HMAC_ALGO no tenant).
+  // habilitado (chave configurada via TENANT_SW_LHM_HMAC_KEY).
   if (config.lhmHmacKey) {
     const algo = config.lhmHmacAlgo ?? 'sha256'
     info.hmac = calcLoginHmac(info, algo, config.lhmHmacKey)
   }
 
-  const url = `${mgmtBaseUrl}/${LHM_API_PATH}`
   const body = JSON.stringify({ info })
+  const redirectTo = pickLhmRedirectTarget(lhm['req'])
 
   logger.info(
     {
-      url,
+      candidates,
       sessId: sessionId,
       sessionLifetimeSec,
       idleTimeoutSec,
       hmacUsed: Boolean(info.hmac),
+      redirectTo,
     },
-    'lhm_post_starting',
+    'lhm_browser_submit_built',
   )
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), POST_TIMEOUT_MS)
-
-  let responseText = ''
-  let responseStatus = 0
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: controller.signal,
-    })
-    responseStatus = resp.status
-    responseText = await resp.text()
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    logger.error({ url, error: message }, 'lhm_post_network_error')
-    return {
-      success: false,
-      raw: { error: 'network_error', url, message },
-      mode: 'lhm',
-    }
-  } finally {
-    clearTimeout(timeout)
-  }
-
-  let parsed: LhmResponse = {}
-  try {
-    parsed = JSON.parse(responseText) as LhmResponse
-  } catch {
-    logger.error(
-      { url, responseStatus, responseText: responseText.slice(0, 500) },
-      'lhm_post_invalid_json',
-    )
-    return {
-      success: false,
-      raw: { error: 'invalid_response', responseStatus, responseText },
-      mode: 'lhm',
-    }
-  }
-
-  const success = parsed.code === RESPONSE_CODE_SUCCESS
-
-  logger.info(
-    {
-      url,
-      responseStatus,
-      code: parsed.code,
-      message: parsed.message,
-      success,
-    },
-    success ? 'lhm_post_success' : 'lhm_post_rejected',
-  )
-
+  // Retornamos success=true porque o payload foi montado com sucesso.
+  // O verdadeiro sucesso (SW autorizou o MAC) a gente só saberá depois
+  // que o browser do guest tentar — e mesmo assim no-cors esconde o
+  // resultado. O `wifi_sessions.sonicwall_raw` guarda o que enviamos
+  // pra auditoria.
   return {
-    success,
+    success: true,
     raw: {
       protocol: 'lhm',
-      url,
-      responseStatus,
-      code: parsed.code,
-      message: parsed.message,
+      strategy: 'browser-submit',
+      candidates,
       sessionLifetimeSec,
       idleTimeoutSec,
+      hmacUsed: Boolean(info.hmac),
     },
     mode: 'lhm',
+    browserSubmit: {
+      urls: candidates,
+      body,
+      redirectTo,
+    },
   }
 }
 

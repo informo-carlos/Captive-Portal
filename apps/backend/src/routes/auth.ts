@@ -12,7 +12,8 @@ import {
   clearOtpAttempts,
 } from '../services/otp'
 import { sendOtpSms } from '../services/zenvia'
-import { releaseAccess, pickLhmRedirectTarget } from '../services/sonicwall'
+import { releaseAccess } from '../services/sonicwall'
+import type { LhmBrowserSubmit } from '../services/sonicwall'
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // ─────────────────────────────────────────
@@ -287,15 +288,16 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const responseBody: {
       message: string
       expires_in: number
-      redirect_url?: string
+      lhm_submit?: LhmBrowserSubmit
     } = {
       message: 'Acesso liberado. Você já pode navegar.',
       expires_in: expiresInSeconds,
     }
-    // Em modo LHM, o backend já falou com o SW. O frontend só precisa
-    // redirecionar o guest pra URL original (`req`) ou pro probe de captive.
-    if (swResult.mode === 'lhm') {
-      responseBody.redirect_url = pickLhmRedirectTarget(stored.lhmParams?.req)
+    // Em modo LHM a gente devolve o payload de browser-submit pro frontend,
+    // que dispara o POST final direto do browser do guest (que está na LAN
+    // do SW). Ver services/sonicwall/lhm.ts pra o porquê.
+    if (swResult.mode === 'lhm' && swResult.browserSubmit) {
+      responseBody.lhm_submit = swResult.browserSubmit
     }
     return reply.send(responseBody)
   })
