@@ -81,6 +81,7 @@ export default function TenantDetailPage() {
       notify({
         type: 'tenant',
         action: newStatus === 'active' ? 'tenant_activated' : 'tenant_deactivated',
+        status: 'completed',
         message: `Tenant ${newStatus === 'active' ? 'ativado' : 'desativado'}`,
         detail: tenant.name,
       })
@@ -102,6 +103,7 @@ export default function TenantDetailPage() {
       notify({
         type: 'tenant',
         action: 'tenant_deleted',
+        status: 'completed',
         message: 'Tenant deletado',
         detail: tenant.name,
       })

@@ -9,6 +9,8 @@ import { ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
 import { useNotifications } from '../../../lib/notification-context'
 import { TenantModal } from '../../../components/tenant-modal'
+import { SkeletonTableRows } from '../../../components/skeleton'
+import { ExportModal } from '../../../components/export-modal'
 
 type StatusFilter = '' | 'active' | 'inactive'
 
@@ -31,6 +33,7 @@ export default function TenantsPage() {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showExport, setShowExport] = useState(false)
 
   // Status toggle
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
@@ -69,6 +72,7 @@ export default function TenantsPage() {
       notify({
         type: 'tenant',
         action: newStatus === 'active' ? 'tenant_activated' : 'tenant_deactivated',
+        status: 'completed',
         message: `Tenant ${newStatus === 'active' ? 'ativado' : 'desativado'}`,
         detail: tenant.name,
       })
@@ -90,6 +94,7 @@ export default function TenantsPage() {
       notify({
         type: 'tenant',
         action: 'tenant_deleted',
+        status: 'completed',
         message: 'Tenant deletado',
         detail: deleteTarget.name,
       })
@@ -166,14 +171,27 @@ export default function TenantsPage() {
             Gerencie os clientes do captive portal.
           </p>
         </div>
-        {canEdit && (
-          <button
-            onClick={handleCreate}
-            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
-          >
-            + Add New Tenant
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {tenants.length > 0 && (
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-2 rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-secondary hover:bg-t-hover transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Exportar
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={handleCreate}
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
+            >
+              + Add New Tenant
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -214,14 +232,7 @@ export default function TenantsPage() {
           </thead>
           <tbody className="divide-y divide-t-default">
             {loading ? (
-              <tr>
-                <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center">
-                  <div className="flex items-center justify-center">
-                    <div className="h-6 w-6 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
-                    <span className="ml-2 text-sm text-t-label">Carregando...</span>
-                  </div>
-                </td>
-              </tr>
+              <SkeletonTableRows columns={canEdit ? 6 : 5} rows={5} />
             ) : tenants.length === 0 ? (
               <tr>
                 <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center text-sm text-t-label">
@@ -316,6 +327,36 @@ export default function TenantsPage() {
         )}
       </div>
 
+      {/* Export Modal */}
+      {showExport && (
+        <ExportModal
+          title="Relatorio de Tenants"
+          filenamePrefix="tenants"
+          metrics={[
+            { label: 'Total de tenants', value: String(pagination.total) },
+            { label: 'Ativos', value: String(tenants.filter((t) => t.status === 'active').length) },
+            { label: 'Inativos', value: String(tenants.filter((t) => t.status === 'inactive').length) },
+          ]}
+          columns={[
+            { key: 'name', label: 'Nome', enabled: true },
+            { key: 'port', label: 'Porta', enabled: true },
+            { key: 'status', label: 'Status', enabled: true },
+            { key: 'serials', label: 'Seriais', enabled: true },
+            { key: 'mode', label: 'Modo', enabled: true },
+            { key: 'created_at', label: 'Criado em', enabled: true },
+          ]}
+          data={tenants.map((t) => ({
+            name: t.name,
+            port: String(t.port),
+            status: t.status === 'active' ? 'Ativo' : t.status === 'inactive' ? 'Inativo' : t.status,
+            serials: t.serials.map((s) => s.serial).join(', '),
+            mode: t.sonicwall_config?.mode === 'lhm' ? 'LHM' : 'REST',
+            created_at: new Date(t.created_at).toLocaleDateString('pt-BR'),
+          }))}
+          onClose={() => setShowExport(false)}
+        />
+      )}
+
       {/* Tenant Modal */}
       {modalOpen && (
         <TenantModal
@@ -327,8 +368,8 @@ export default function TenantsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-t-overlay backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-t-overlay backdrop-blur-sm animate-modal-overlay">
+          <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card p-6 shadow-xl animate-modal-content">
             <h3 className="text-lg font-semibold text-t-primary">Confirmar exclusao</h3>
             <p className="mt-2 text-sm text-t-muted">
               Tem certeza que deseja deletar o tenant <strong className="text-t-primary">{deleteTarget.name}</strong>?

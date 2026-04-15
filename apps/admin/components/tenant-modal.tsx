@@ -177,6 +177,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         notify({
           type: 'tenant',
           action: 'tenant_updated',
+          status: 'completed',
           message: 'Configuracao de tenant atualizada',
           detail: form.name.trim(),
         })
@@ -216,6 +217,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         notify({
           type: 'tenant',
           action: 'tenant_created',
+          status: 'completed',
           message: 'Novo tenant criado',
           detail: `${form.name.trim()} — porta ${form.port}`,
         })
@@ -255,8 +257,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
   const durationHours = parseInt(form.session_duration_minutes) / 60
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10">
-      <div className="w-full max-w-2xl rounded-xl border border-t-input bg-t-card shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10 animate-modal-overlay">
+      <div className="w-full max-w-2xl rounded-xl border border-t-input bg-t-card shadow-xl animate-modal-content">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-t-default px-6 py-4">
           <h2 className="text-lg font-semibold text-t-primary">

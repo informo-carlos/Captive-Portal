@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useAuth } from '../lib/auth-context'
 import { useTheme } from '../lib/theme-context'
 import { useNotifications } from '../lib/notification-context'
@@ -21,30 +21,52 @@ const ROLE_COLORS: Record<string, string> = {
 export function Header() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
-  const { unreadCount } = useNotifications()
+  const { unreadCount, runningCount } = useNotifications()
   const [panelOpen, setPanelOpen] = useState(false)
+  const bellRef = useRef<HTMLButtonElement>(null)
+
+  const handleToggle = useCallback(() => {
+    setPanelOpen((v) => !v)
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setPanelOpen(false)
+  }, [])
 
   if (!user) return null
 
   return (
     <header className="relative z-30 flex h-14 items-center justify-between border-b border-t-default bg-t-bg2/80 px-6 backdrop-blur-md">
       <div className="flex items-center gap-3">
-        {/* Notification bell */}
+        {/* Activity bell */}
         <div className="relative">
           <button
-            onClick={() => setPanelOpen((v) => !v)}
-            className="relative rounded-lg p-2 text-t-muted transition-colors hover:bg-t-hover hover:text-t-secondary"
+            ref={bellRef}
+            onClick={handleToggle}
+            className={`relative rounded-lg p-2 transition-colors ${
+              panelOpen
+                ? 'bg-t-hover text-t-secondary'
+                : 'text-t-muted hover:bg-t-hover hover:text-t-secondary'
+            }`}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
             </svg>
-            {unreadCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-edge-cyan px-1 text-[9px] font-bold text-[#0a0e17]">
-                {unreadCount > 9 ? '9+' : unreadCount}
+            {(unreadCount > 0 || runningCount > 0) && (
+              <span className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold ${
+                runningCount > 0
+                  ? 'bg-blue-500 text-white animate-pulse'
+                  : 'bg-edge-cyan text-[#0a0e17]'
+              }`}>
+                {runningCount > 0 ? runningCount : unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
-          <NotificationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+          <NotificationPanel
+            open={panelOpen}
+            onClose={handleClose}
+            anchorRef={bellRef}
+          />
         </div>
 
         {/* Theme toggle */}

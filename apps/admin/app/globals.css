@@ -88,9 +88,26 @@
 .animate-float { animation: float 6s ease-in-out infinite; }
 .animate-float-reverse { animation: float-reverse 7s ease-in-out infinite; }
 .animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
+@keyframes modal-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-content-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
 .animate-fade-in { animation: fade-in 0.8s ease-out forwards; }
 .animate-glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+.animate-modal-overlay { animation: modal-overlay-in 0.2s ease-out forwards; }
+.animate-modal-content { animation: modal-content-in 0.3s ease-out forwards; }
 
 /* Glassmorphism card */
 .glass-card {
@@ -121,4 +138,147 @@
 select option {
   background: var(--select-bg);
   color: var(--select-text);
+}
+
+/* ===== Builder Grid Background ===== */
+.builder-grid-bg {
+  position: relative;
+  border-radius: 16px;
+  border: 1px dashed var(--border-input);
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.builder-grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, var(--grid-line-color, rgba(0,229,195,0.06)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line-color, rgba(0,229,195,0.06)) 1px, transparent 1px);
+  background-size: var(--grid-cell-w, 80px) var(--grid-cell-h, 60px);
+  background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
+}
+
+/* Dots at each intersection */
+.builder-grid-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(circle, var(--grid-dot-color, rgba(0,229,195,0.15)) 1px, transparent 1px);
+  background-size: var(--grid-cell-w, 80px) var(--grid-cell-h, 60px);
+  background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
+}
+
+[data-theme="light"] .builder-grid-bg::before {
+  --grid-line-color: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .builder-grid-bg::after {
+  --grid-dot-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ===== React Grid Layout ===== */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+  z-index: 1;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item.resizing {
+  transition: none;
+  z-index: 1;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+  opacity: 0.9;
+}
+
+.react-grid-item.dropping {
+  visibility: hidden;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: #00e5c3;
+  opacity: 0.1;
+  border-radius: 12px;
+  transition-duration: 100ms;
+  z-index: 2;
+  user-select: none;
+}
+
+.react-grid-item.react-grid-placeholder.placeholder-resizing {
+  transition: none;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 1;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid #00e5c3;
+  border-bottom: 2px solid #00e5c3;
+  opacity: 0.6;
+}
+
+.react-resizable-hide > .react-resizable-handle {
+  display: none;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+  transform: rotate(90deg);
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+  transform: rotate(180deg);
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+  transform: rotate(270deg);
 }

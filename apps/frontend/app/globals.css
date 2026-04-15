@@ -30,10 +30,45 @@
   50% { transform: translateY(15px); opacity: 0.7; }
 }
 
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes check-draw {
+  from { stroke-dashoffset: 30; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
 .animate-shake { animation: shake 0.5s ease-in-out; }
 .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
 .animate-float { animation: float 6s ease-in-out infinite; }
 .animate-float-reverse { animation: float-reverse 7s ease-in-out infinite; }
+.animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+.animate-scale-in { animation: scale-in 0.4s ease-out forwards; }
+.animate-check-draw {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: check-draw 0.5s ease-out 0.3s forwards;
+}
+.animate-pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+
+/* Staggered children animations */
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 320ms; }
 
 /* Select dropdown dark styling */
 select option {

@@ -2,32 +2,41 @@
 
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Cell,
 } from 'recharts'
 import { useTheme } from '../lib/theme-context'
 
-interface SessionsChartProps {
-  data: { date: string; sessions: number }[]
+interface TenantData {
+  tenant_id: string
+  tenant_name: string
+  sessions: number
+  unique_phones: number
 }
 
-function formatDateLabel(dateStr: string): string {
-  const [, month, day] = dateStr.split('-')
-  return `${day}/${month}`
+interface TenantDistributionChartProps {
+  data: TenantData[]
 }
 
-export function SessionsChart({ data }: SessionsChartProps) {
+const BAR_COLORS = [
+  '#00e5c3',
+  '#06b6d4',
+  '#8b5cf6',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#10b981',
+  '#6366f1',
+]
+
+export function TenantDistributionChart({ data }: TenantDistributionChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
-
-  const chartData = data.map((d) => ({
-    ...d,
-    label: formatDateLabel(d.date),
-  }))
 
   const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)'
   const axisColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.1)'
@@ -36,19 +45,19 @@ export function SessionsChart({ data }: SessionsChartProps) {
   const tooltipBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'
   const tooltipText = isDark ? '#e2e8f0' : '#334155'
 
+  const chartData = data.map((d) => ({
+    ...d,
+    name: d.tenant_name.length > 12 ? d.tenant_name.slice(0, 12) + '...' : d.tenant_name,
+    fullName: d.tenant_name,
+  }))
+
   return (
     <div className="h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id="sessionsGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5c3" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#00e5c3" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+        <BarChart data={chartData} layout="horizontal" barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis
-            dataKey="label"
+            dataKey="name"
             tick={{ fontSize: 11, fill: tickColor }}
             axisLine={{ stroke: axisColor }}
             tickLine={false}
@@ -60,11 +69,14 @@ export function SessionsChart({ data }: SessionsChartProps) {
             allowDecimals={false}
           />
           <Tooltip
+            formatter={(value, name) => {
+              const label = name === 'sessions' ? 'Sessoes' : 'Usuarios unicos'
+              return [Number(value).toLocaleString('pt-BR'), label]
+            }}
             labelFormatter={(_, payload) => {
-              if (payload?.[0]?.payload?.date) return payload[0].payload.date
+              if (payload?.[0]?.payload?.fullName) return payload[0].payload.fullName
               return ''
             }}
-            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
             contentStyle={{
               borderRadius: '8px',
               border: `1px solid ${tooltipBorder}`,
@@ -73,16 +85,12 @@ export function SessionsChart({ data }: SessionsChartProps) {
               fontSize: '12px',
             }}
           />
-          <Area
-            type="monotone"
-            dataKey="sessions"
-            stroke="#00e5c3"
-            strokeWidth={2}
-            fill="url(#sessionsGradient)"
-            dot={{ r: 3, fill: '#00e5c3', strokeWidth: 0 }}
-            activeDot={{ r: 5, fill: '#00e5c3', strokeWidth: 0 }}
-          />
-        </AreaChart>
+          <Bar dataKey="sessions" radius={[4, 4, 0, 0]} name="sessions">
+            {chartData.map((_, index) => (
+              <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     </div>
   )

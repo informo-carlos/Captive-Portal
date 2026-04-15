@@ -89,6 +89,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
         notify({
           type: 'user',
           action: 'user_updated',
+          status: 'completed',
           message: 'Usuario atualizado',
           detail: `${form.name.trim()} (${form.role})`,
         })
@@ -103,6 +104,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
         notify({
           type: 'user',
           action: 'user_created',
+          status: 'completed',
           message: 'Novo usuario criado',
           detail: `${form.name.trim()} (${form.role})`,
         })
@@ -123,8 +125,8 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10">
-      <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10 animate-modal-overlay">
+      <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card shadow-xl animate-modal-content">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-t-default px-6 py-4">
           <h2 className="text-lg font-semibold text-t-primary">

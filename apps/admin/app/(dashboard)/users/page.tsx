@@ -5,6 +5,7 @@ import type { AdminUser } from '@captive-portal/shared'
 import { RequireRole } from '../../../components/require-role'
 import { UserModal } from '../../../components/user-modal'
 import { getUsers, deleteUser, ApiRequestError } from '../../../lib/api'
+import { SkeletonTableRows } from '../../../components/skeleton'
 import { useAuth } from '../../../lib/auth-context'
 import { useNotifications } from '../../../lib/notification-context'
 
@@ -53,6 +54,7 @@ export default function UsersPage() {
       notify({
         type: 'user',
         action: 'user_deleted',
+        status: 'completed',
         message: 'Usuario deletado',
         detail: deleted?.name || id,
       })
@@ -120,14 +122,7 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-t-default">
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
-                      Carregando...
-                    </div>
-                  </td>
-                </tr>
+                <SkeletonTableRows columns={5} rows={4} />
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">

@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import type { AuditLog, Pagination } from '@captive-portal/shared'
 import { RequireRole } from '../../../components/require-role'
 import { getAuditLogs, ApiRequestError } from '../../../lib/api'
+import { SkeletonTableRows } from '../../../components/skeleton'
+import { ExportModal } from '../../../components/export-modal'
 
 const ACTION_LABELS: Record<string, { label: string; className: string }> = {
   login: { label: 'Login', className: 'bg-edge-cyan/10 text-edge-cyan border border-edge-cyan/20' },
@@ -28,6 +30,7 @@ export default function AuditPage() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
+  const [showExport, setShowExport] = useState(false)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -94,11 +97,24 @@ export default function AuditPage() {
     <RequireRole minRole="superadmin">
       <div>
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-t-primary">Audit Log</h1>
-          <p className="mt-1 text-sm text-t-label">
-            Registro de todas as acoes administrativas.
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-t-primary">Audit Log</h1>
+            <p className="mt-1 text-sm text-t-label">
+              Registro de todas as acoes administrativas.
+            </p>
+          </div>
+          {logs.length > 0 && (
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-2 rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-secondary hover:bg-t-hover transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Exportar
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -163,14 +179,7 @@ export default function AuditPage() {
             </thead>
             <tbody className="divide-y divide-t-default">
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
-                      Carregando...
-                    </div>
-                  </td>
-                </tr>
+                <SkeletonTableRows columns={5} rows={8} />
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-t-label">
@@ -220,6 +229,37 @@ export default function AuditPage() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Export Modal */}
+        {showExport && (
+          <ExportModal
+            title="Relatorio de Audit Log"
+            subtitle={from || to ? `Periodo: ${from || '...'} a ${to || '...'}` : undefined}
+            filenamePrefix="audit_log"
+            metrics={[
+              { label: 'Total de registros', value: String(pagination.total) },
+              { label: 'Pagina atual', value: `${logs.length} registros` },
+              ...(action ? [{ label: 'Filtro de acao', value: ACTION_LABELS[action]?.label || action }] : []),
+            ]}
+            columns={[
+              { key: 'created_at', label: 'Data/Hora', enabled: true },
+              { key: 'user_name', label: 'Usuario', enabled: true },
+              { key: 'user_email', label: 'Email', enabled: true },
+              { key: 'action', label: 'Acao', enabled: true },
+              { key: 'payload', label: 'Detalhes', enabled: true },
+              { key: 'ip_address', label: 'IP', enabled: true },
+            ]}
+            data={logs.map((log) => ({
+              created_at: formatDate(log.created_at),
+              user_name: log.user.name,
+              user_email: log.user.email,
+              action: ACTION_LABELS[log.action]?.label || log.action,
+              payload: formatPayload(log.payload),
+              ip_address: log.ip_address,
+            }))}
+            onClose={() => setShowExport(false)}
+          />
         )}
       </div>
     </RequireRole>

@@ -3,6 +3,7 @@
 import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PhoneInput, { validatePhone } from '../components/PhoneInput'
+import TermsModal from '../components/TermsModal'
 import { useBranding } from '../components/BrandingProvider'
 import { ApiRequestError, requestOtp } from '../lib/api'
 import { extractLhmParams, serializeLhmParams } from '../lib/lhm-params'
@@ -34,6 +35,8 @@ function PhonePage() {
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [nameTouched, setNameTouched] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
 
   const missingDeviceInfo = !serial || !mac || !ip
 
@@ -50,7 +53,7 @@ function PhonePage() {
       setApiError(null)
       setNameTouched(true)
 
-      if (name.trim().length < 2 || validationError) return
+      if (name.trim().length < 2 || validationError || !termsAccepted) return
 
       setLoading(true)
       try {
@@ -80,7 +83,7 @@ function PhonePage() {
         setLoading(false)
       }
     },
-    [name, phone, serial, mac, ip, lhmParams, validationError, router],
+    [name, phone, serial, mac, ip, lhmParams, validationError, termsAccepted, router],
   )
 
   if (missingDeviceInfo) return null
@@ -171,15 +174,55 @@ function PhonePage() {
               disabled={loading}
             />
 
+            {/* Termos de uso */}
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={termsAccepted}
+                onClick={() => setTermsAccepted((v) => !v)}
+                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                  termsAccepted
+                    ? 'border-edge-cyan/40 bg-edge-cyan/20'
+                    : 'border-white/[0.12] bg-white/[0.04] hover:border-white/[0.2]'
+                }`}
+              >
+                {termsAccepted && (
+                  <svg className="h-3.5 w-3.5 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+              <p className="text-xs leading-relaxed text-slate-400">
+                Li e concordo com os{' '}
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(true)}
+                  className="font-medium text-edge-cyan underline underline-offset-2 transition-colors hover:text-edge-cyan/80"
+                >
+                  Termos de Uso e Politica de Privacidade
+                </button>
+              </p>
+            </div>
+
             {apiError && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
                 {apiError}
               </div>
             )}
 
+            <TermsModal
+              open={termsModalOpen}
+              onClose={() => setTermsModalOpen(false)}
+              onAccept={() => {
+                setTermsAccepted(true)
+                setTermsModalOpen(false)
+              }}
+            />
+
             <button
               type="submit"
-              disabled={loading || !!validationError || name.trim().length < 2}
+              disabled={loading || !!validationError || name.trim().length < 2 || !termsAccepted}
               className="w-full rounded-xl bg-edge-cyan py-3 text-base font-bold transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
               style={{ color: secondaryColor }}
             >
