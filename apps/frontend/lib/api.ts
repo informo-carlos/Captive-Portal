@@ -91,21 +91,12 @@ export interface VerifyOtpResponse {
   message: string
   expires_in: number
   /**
-   * Em modo LHM, o backend devolve instruções pro browser disparar POSTs
-   * fire-and-forget pro gateway local do SonicWall (que está na LAN do
-   * usuário) e então redirecionar pra URL original. Em modo REST/stub
-   * esse campo vem vazio e a UI mostra a tela de sucesso.
+   * Em modo LHM, o backend já falou com o SonicWall (POST pro
+   * /lhmapi/externalAAAGuest) e o MAC já foi autorizado. Este campo traz a
+   * URL original (`req`) pra onde o browser deve redirecionar. Em modo REST
+   * o campo vem vazio e a UI mostra a tela de sucesso.
    */
-  lhm_submit?: {
-    urls: string[]
-    body: {
-      sessId: string
-      userName: string
-      sessionLifetime: string
-      idleTimeout: string
-    }
-    redirectTo: string
-  }
+  redirect_url?: string
 }
 
 export function verifyOtp(

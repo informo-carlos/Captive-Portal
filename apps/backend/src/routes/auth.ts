@@ -12,7 +12,7 @@ import {
   clearOtpAttempts,
 } from '../services/otp'
 import { sendOtpSms } from '../services/zenvia'
-import { releaseAccess } from '../services/sonicwall'
+import { releaseAccess, pickLhmRedirectTarget } from '../services/sonicwall'
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // ─────────────────────────────────────────
@@ -287,31 +287,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const responseBody: {
       message: string
       expires_in: number
-      lhm_submit?: typeof swResult.lhmSubmit
+      redirect_url?: string
     } = {
       message: 'Acesso liberado. Você já pode navegar.',
       expires_in: expiresInSeconds,
     }
-    // Em modo LHM, o frontend dispara POSTs fire-and-forget pro SW e depois
-    // redireciona o browser. Em modo REST o campo é omitido.
-    if (swResult.lhmSubmit) {
-      responseBody.lhm_submit = swResult.lhmSubmit
+    // Em modo LHM, o backend já falou com o SW. O frontend só precisa
+    // redirecionar o guest pra URL original (`req`) ou pro probe de captive.
+    if (swResult.mode === 'lhm') {
+      responseBody.redirect_url = pickLhmRedirectTarget(stored.lhmParams?.req)
     }
     return reply.send(responseBody)
-  })
-
-  // ─────────────────────────────────────────
-  // POST /auth/lhm-debug
-  // Recebe relatório do browser sobre quais URLs de externalGuestLogin.cgi
-  // responderam (no-cors → opaque) ou falharam (timeout/network). Útil
-  // pra diagnosticar qual path do SW 7.3.2+ aceita o POST. Só loga.
-  // ─────────────────────────────────────────
-  fastify.post('/auth/lhm-debug', async (request, reply) => {
-    request.log.info(
-      { tenantId: request.tenantId, body: request.body },
-      'lhm_browser_debug',
-    )
-    return reply.send({ ok: true })
   })
 }
 

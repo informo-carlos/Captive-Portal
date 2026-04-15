@@ -92,83 +92,12 @@ function OtpPage() {
 
     try {
       const result = await verifyOtp({ phone, otp }, serial)
-      // Em modo LHM o backend devolve um payload `lhm_submit` com N URLs
-      // candidatas pro externalGuestLogin.cgi do gateway local. Disparamos
-      // POSTs fire-and-forget em paralelo (no-cors → opaque response, JS
-      // não lê mas o SW processa) e em seguida redirecionamos pro `req`
-      // original. Se pelo menos um POST funcionou, o MAC foi autorizado
-      // e o redirect passa pelo SW sem reintercepção.
-      if (result.lhm_submit) {
-        const { urls, body, redirectTo } = result.lhm_submit
-        // Shotgun no-cors: dispara POST form-urlencoded E text/plain+JSON
-        // pra TODAS as URLs candidatas (lhmapi/externalGuest novo + CGIs
-        // legados) em paralelo com timeout curto por fetch. text/plain
-        // e form-urlencoded sao simple requests (sem preflight). Alguma
-        // vai passar; se o SW autorizar em qualquer uma, o redirect cola.
-        const httpUrls = urls.filter((u) => u.startsWith('http://'))
-        const jsonPayload: Record<string, string> = {
-          ...lhmParams,
-          ...(body as Record<string, string>),
-        }
-        const jsonString = JSON.stringify(jsonPayload)
-        const formBody = new URLSearchParams(jsonPayload)
-        type Attempt = { url: string; ct: string; ok: boolean; ms: number; err?: string }
-        const runFetch = async (
-          url: string,
-          ct: 'form' | 'text',
-        ): Promise<Attempt> => {
-          const ctrl = new AbortController()
-          const t = setTimeout(() => ctrl.abort(), 4000)
-          const started = Date.now()
-          try {
-            await fetch(url, {
-              method: 'POST',
-              mode: 'no-cors',
-              credentials: 'omit',
-              headers: {
-                'Content-Type':
-                  ct === 'form'
-                    ? 'application/x-www-form-urlencoded'
-                    : 'text/plain;charset=UTF-8',
-              },
-              body: ct === 'form' ? formBody : jsonString,
-              signal: ctrl.signal,
-            })
-            return { url, ct, ok: true, ms: Date.now() - started }
-          } catch (e) {
-            return {
-              url,
-              ct,
-              ok: false,
-              ms: Date.now() - started,
-              err: (e as Error).name + ':' + (e as Error).message,
-            }
-          } finally {
-            clearTimeout(t)
-          }
-        }
-        const attempts = await Promise.all([
-          ...httpUrls.map((u) => runFetch(u, 'form')),
-          ...httpUrls.map((u) => runFetch(u, 'text')),
-        ])
-        try {
-          await fetch(
-            `/auth/lhm-debug?serial=${encodeURIComponent(serial)}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                strategy: 'shotgun-nocors-form+text',
-                attempts,
-                payloadKeys: Object.keys(jsonPayload),
-              }),
-              keepalive: true,
-            },
-          )
-        } catch {
-          /* ignore */
-        }
-        window.location.href = redirectTo
+      // Em modo LHM o backend já falou com o firewall (POST pro
+      // /lhmapi/externalAAAGuest) e devolveu uma URL de redirect
+      // (`req` original ou probe de captive). Em modo REST a resposta
+      // vem sem redirect_url e a UI mostra a tela de sucesso normal.
+      if (result.redirect_url) {
+        window.location.href = result.redirect_url
         return
       }
       router.push(`/success?serial=${serial}`)
@@ -211,7 +140,7 @@ function OtpPage() {
     } finally {
       setLoading(false)
     }
-  }, [otpDigits, phone, serial, lhmParams, router, triggerShake])
+  }, [otpDigits, phone, serial, router, triggerShake])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {

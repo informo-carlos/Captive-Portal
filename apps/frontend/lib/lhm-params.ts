@@ -48,30 +48,6 @@ export function serializeLhmParams(params: Record<string, string>): string {
 }
 
 /**
- * Valida que uma URL recebida do backend pra redirect LHM é segura.
- *
- * Regras:
- *  - Precisa ser parseável como URL absoluta
- *  - Protocolo http(s) apenas
- *  - Path precisa terminar em `externalGuestLogin.cgi` (endpoint oficial do
- *    SonicWall pro retorno LHM) — protege contra phishing/open redirect
- *  - Limite de tamanho razoável
- */
-export function isValidLhmRedirectUrl(raw: string): boolean {
-  if (!raw || typeof raw !== 'string' || raw.length > 2048) return false
-  let url: URL
-  try {
-    url = new URL(raw)
-  } catch {
-    return false
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
-  if (!url.hostname) return false
-  if (!url.pathname.endsWith('/externalGuestLogin.cgi')) return false
-  return true
-}
-
-/**
  * Inverso de serializeLhmParams. Retorna {} se a string for vazia ou inválida.
  */
 export function deserializeLhmParams(serialized: string): Record<string, string> {

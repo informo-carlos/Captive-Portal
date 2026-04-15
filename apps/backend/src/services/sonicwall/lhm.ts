@@ -1,41 +1,47 @@
 // LHM — Lightweight Hotspot Messaging / External Guest Authentication
 //
-// Protocolo real (mapeado via django-sonicwall + kdaveid/CaptivePortal.MockServer):
+// Protocolo oficial (docs SonicWall, REST API for External Guest Authentication):
 //
-//   1. Cliente conecta ao SSID com External Guest Auth habilitado.
-//   2. SonicWall intercepta HTTP e redireciona pro nosso portal injetando
-//      query params: sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
-//   3. Capturamos no frontend, mandamos no body do request-otp, backend
-//      guarda em Redis junto com o OTP.
-//   4. Após verify-otp OK, esta função NÃO faz chamada alguma ao SonicWall.
-//      Em vez disso, constrói um payload `LhmBrowserSubmit` que o frontend
-//      vai usar pra disparar POSTs fire-and-forget direto do navegador do
-//      usuário (que está DENTRO da rede do cliente).
-//   5. Frontend executa `fetch(url, { method:'POST', mode:'no-cors', body })`
-//      pra cada URL candidata em paralelo. A resposta é XML
-//      (<SonicWALLAccessGatewayParam><AuthenticationReply><ResponseCode>50
-//      </ResponseCode>...) mas como é no-cors, JS não lê — a gente confia
-//      que pelo menos um POST deu certo.
-//   6. Frontend faz `window.location.href = req` — se o SW autorizou o MAC,
-//      o request passa; se não, cai no captive portal de novo.
+//   1. Guest conecta ao SSID com External Guest Auth habilitado.
+//   2. SonicWall intercepta HTTP e redireciona pro portal injetando
+//      query params: ssid, sessionId, ip, mac, ufi, mgmtBaseUrl,
+//      clientRedirectUrl, req (e opcionalmente hmac).
+//   3. Portal captura, manda OTP, valida.
+//   4. Backend (ESTE código) faz POST pro firewall:
+//        POST {mgmtBaseUrl}/lhmapi/externalAAAGuest
+//        Content-Type: application/json
+//        { info: { action: 1, sessId, userName, sessionLifetime,
+//                  idleTimeout, maxRx, maxTx, quotaCycleType, ... } }
+//   5. SonicWall responde { code: "50", message: "..." } se autorizou.
+//   6. Backend retorna success pro frontend → frontend redireciona guest
+//      pra URL `req` original.
 //
-// Por que múltiplas URLs candidatas? Porque a SonicWall quebrou
-// `externalGuestLogin.cgi` em 7.3.2+ e a gente não sabe exatamente onde o
-// endpoint "novo" vive. A gente dispara em todas as variantes razoáveis e
-// torce que uma sobreviva. Fire-and-forget é barato — 5-10 POSTs extras não
-// atrapalham ninguém e o browser nem espera resposta.
+// IMPORTANTE: o endpoint é `externalAAAGuest` (AAA = Authentication,
+// Authorization, Accounting) — NÃO `externalGuest`. Os CGIs antigos
+// (externalGuestLogin.cgi etc.) foram removidos no SonicOS 7.3.2.
+//
+// Requisito de rede: o backend precisa alcançar {mgmtBaseUrl} — geralmente
+// IP privado do SW. Em produção isso exige VPN/túnel entre VPS e LAN do
+// cliente. Sem credenciais de admin do SW — só rota IP.
+//
+// Limitações conhecidas do SonicOS 7.3.2:
+//   - sessionLifetime ∈ (0, 9999]
+//   - idleTimeout ∈ (0, sessionLifetime]
+//   - cycleSessionLifeTime ∈ [0, 9999]
+//   - HMAC pode ser habilitado na UI (Zone Settings → Message Authentication)
 //
 // Ver: docs/lhm-protocol-tz570.md
 
+import { createHmac } from 'node:crypto'
 import type { FastifyBaseLogger } from 'fastify'
 import type {
-  LhmBrowserSubmit,
   ReleaseAccessParams,
   ReleaseAccessResult,
   SonicwallConfig,
 } from './index'
 
 export const KNOWN_LHM_PARAM_NAMES = [
+  'ssid',
   'sessionId',
   'ip',
   'mac',
@@ -43,156 +49,243 @@ export const KNOWN_LHM_PARAM_NAMES = [
   'mgmtBaseUrl',
   'clientRedirectUrl',
   'req',
+  'hmac',
   'cc',
 ] as const
 
-const MAX_BASE_URL_LENGTH = 512
-const MAX_CANDIDATE_URLS = 12
+const LHM_API_PATH = 'lhmapi/externalAAAGuest'
+const POST_TIMEOUT_MS = 10_000
 
-/**
- * Paths tentados em cada base. A SonicWall historicamente serve
- * `externalGuestLogin.cgi` na raiz — é o único path documentado. Em 7.3.2+
- * ele retorna 404, então a gente dispara também em variantes razoáveis pra
- * cobrir o caso do endpoint ter sido movido silenciosamente.
- */
-const CANDIDATE_PATHS = [
-  // SonicOS 7.3.2+: os CGIs foram REMOVIDOS e o suporte oficial
-  // orientou a usar este endpoint REST. É o candidato primário.
-  'lhmapi/externalGuest',
-  // Legado (7.1.x e anteriores) — mantido como fallback.
-  'externalGuestLogin.cgi',
-  'cgi-bin/externalGuestLogin.cgi',
-  'sonicui/7/externalGuestLogin.cgi',
-  'externalGuestUpdateSession.cgi',
-] as const
+// Limites da backend API em SonicOS 7.3.2.
+const MAX_SESSION_LIFETIME_SEC = 9999
+const MIN_IDLE_TIMEOUT_SEC = 60
+const DEFAULT_IDLE_TIMEOUT_SEC = 1800
 
-function isValidBaseUrl(raw: string): boolean {
-  if (!raw || raw.length > MAX_BASE_URL_LENGTH) return false
-  let url: URL
+// Códigos de resposta do firewall (tabela 1.5 da doc oficial).
+const RESPONSE_CODE_SUCCESS = '50'
+
+interface LhmInfo {
+  action: 1 | 2 | 3 | 4
+  sessId: string
+  userName: string
+  sessionLifetime: string
+  idleTimeout: string
+  maxRx: string
+  maxTx: string
+  quotaCycleType: string
+  cycleSessionLifeTime: string
+  cycleMaxRx: string
+  cycleMaxTx: string
+  hmac?: string
+  passwd?: string
+}
+
+interface LhmResponse {
+  code?: string
+  message?: string
+}
+
+function normalizeBaseUrl(raw: string): string | null {
+  if (!raw) return null
   try {
-    url = new URL(raw)
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    return url.toString().replace(/\/+$/, '')
   } catch {
-    return false
+    return null
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
-  if (!url.hostname) return false
-  return true
+}
+
+function clampSessionLifetime(seconds: number): number {
+  if (seconds <= 0) return MAX_SESSION_LIFETIME_SEC
+  if (seconds > MAX_SESSION_LIFETIME_SEC) return MAX_SESSION_LIFETIME_SEC
+  return seconds
+}
+
+function clampIdleTimeout(idleSec: number, sessionSec: number): number {
+  const candidate = Math.max(idleSec, MIN_IDLE_TIMEOUT_SEC)
+  if (candidate >= sessionSec) {
+    return Math.max(MIN_IDLE_TIMEOUT_SEC, sessionSec - 1)
+  }
+  return candidate
 }
 
 /**
- * Constrói todas as URLs candidatas a partir das bases fornecidas pelo SW.
- * Deduplica e limita o total — fire-and-forget é barato mas não infinito.
+ * HMAC do login (action=1): concatena os campos na ordem exata documentada.
+ * O username é URL-encoded antes de entrar no cálculo.
  */
-function buildCandidateUrls(bases: string[]): string[] {
-  const urls = new Set<string>()
-  for (const rawBase of bases) {
-    if (!isValidBaseUrl(rawBase)) continue
-    const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
-    for (const path of CANDIDATE_PATHS) {
-      try {
-        urls.add(new URL(path, base).toString())
-      } catch {
-        // base inválida — ignora e segue pras próximas
-      }
-      if (urls.size >= MAX_CANDIDATE_URLS) break
-    }
-    if (urls.size >= MAX_CANDIDATE_URLS) break
-  }
-  return Array.from(urls)
-}
-
-/** `req` do SW é a URL original que o usuário tentou acessar. Fallback seguro. */
-function pickRedirectTarget(req: string | undefined): string {
-  if (req && /^https?:\/\//i.test(req) && req.length <= 2048) return req
-  // Fallback: a página de detecção de captive portal do Android/iOS.
-  // Se o SW autorizou o MAC, essa página volta 204, o OS detecta internet
-  // disponível e dispensa o captive prompt automaticamente.
-  return 'http://connectivitycheck.gstatic.com/generate_204'
+function calcLoginHmac(info: LhmInfo, algo: string, key: string): string {
+  const text =
+    info.sessId +
+    encodeURIComponent(info.userName) +
+    info.sessionLifetime +
+    info.idleTimeout +
+    info.maxRx +
+    info.maxTx +
+    info.quotaCycleType +
+    info.cycleSessionLifeTime +
+    info.cycleMaxRx +
+    info.cycleMaxTx
+  return createHmac(algo, key).update(text).digest('hex')
 }
 
 export async function releaseAccessLhm(
   params: ReleaseAccessParams,
-  _config: SonicwallConfig,
+  config: SonicwallConfig,
   logger: FastifyBaseLogger,
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
-  const clientRedirectUrl = lhm['clientRedirectUrl']
-  const mgmtBaseUrl = lhm['mgmtBaseUrl']
+  const mgmtBaseUrlRaw = lhm['mgmtBaseUrl']
 
-  // Sem sessionId + pelo menos uma base, não há LHM possível.
-  if (!sessionId || (!clientRedirectUrl && !mgmtBaseUrl)) {
-    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_missing_redirect_params')
+  if (!sessionId || !mgmtBaseUrlRaw) {
+    logger.error(
+      { lhmKeys: Object.keys(lhm) },
+      'lhm_missing_redirect_params',
+    )
     return {
       success: false,
       raw: {
         error: 'missing_lhm_params',
         message:
-          'Esta sessão não foi iniciada via redirect do SonicWall. ' +
-          'Conecte-se à rede Wi-Fi e tente novamente.',
+          'Sessão sem parâmetros LHM do SonicWall (sessionId/mgmtBaseUrl). ' +
+          'Conecte-se à rede Wi-Fi novamente.',
       },
       mode: 'lhm',
     }
   }
 
-  // clientRedirectUrl é a interface do *user portal* (ex: http://IP:8080),
-  // geralmente alcançável pela VLAN guest. mgmtBaseUrl é a interface de
-  // *gerência* (ex: https://IP:4043), frequentemente BLOQUEADA pra guest.
-  // A gente coloca clientRedirectUrl primeiro porque tem mais chance de
-  // sobreviver às access rules do cliente, mas dispara nas duas.
-  const bases = [clientRedirectUrl, mgmtBaseUrl].filter(Boolean) as string[]
-  const urls = buildCandidateUrls(bases)
-
-  if (urls.length === 0) {
-    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_no_valid_candidate_urls')
+  const mgmtBaseUrl = normalizeBaseUrl(mgmtBaseUrlRaw)
+  if (!mgmtBaseUrl) {
+    logger.error({ mgmtBaseUrlRaw }, 'lhm_invalid_mgmt_base_url')
     return {
       success: false,
       raw: {
-        error: 'invalid_lhm_base_url',
-        message: 'Nenhuma URL base válida no redirect do SonicWall.',
+        error: 'invalid_mgmt_base_url',
+        message: 'mgmtBaseUrl inválido no redirect do SonicWall.',
       },
       mode: 'lhm',
     }
   }
 
-  const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
-  const idleTimeoutSec = 30 * 60
+  const sessionLifetimeSec = clampSessionLifetime(
+    (params.sessionMinutes ?? 480) * 60,
+  )
+  const idleTimeoutSec = clampIdleTimeout(
+    DEFAULT_IDLE_TIMEOUT_SEC,
+    sessionLifetimeSec,
+  )
 
-  const lhmSubmit: LhmBrowserSubmit = {
-    urls,
-    body: {
-      sessId: sessionId,
-      userName: params.mac, // SonicWall aceita o MAC como userName
-      sessionLifetime: String(sessionLifetimeSec),
-      idleTimeout: String(idleTimeoutSec),
-    },
-    redirectTo: pickRedirectTarget(lhm['req']),
+  const info: LhmInfo = {
+    action: 1,
+    sessId: sessionId,
+    userName: params.mac,
+    sessionLifetime: String(sessionLifetimeSec),
+    idleTimeout: String(idleTimeoutSec),
+    maxRx: '0',
+    maxTx: '0',
+    quotaCycleType: '0',
+    cycleSessionLifeTime: '0',
+    cycleMaxRx: '0',
+    cycleMaxTx: '0',
   }
+
+  // HMAC opcional — só preencher se o firewall tiver Message Authentication
+  // habilitado (configurado via env LHM_HMAC_KEY/LHM_HMAC_ALGO no tenant).
+  if (config.lhmHmacKey) {
+    const algo = config.lhmHmacAlgo ?? 'sha256'
+    info.hmac = calcLoginHmac(info, algo, config.lhmHmacKey)
+  }
+
+  const url = `${mgmtBaseUrl}/${LHM_API_PATH}`
+  const body = JSON.stringify({ info })
 
   logger.info(
     {
-      lhmKeys: Object.keys(lhm),
-      candidateCount: urls.length,
+      url,
+      sessId: sessionId,
       sessionLifetimeSec,
       idleTimeoutSec,
-      // Lista completa de URLs candidatas no log pra debug do workaround.
-      // sessId é efêmero (válido por minutos); IPs são internos do cliente.
-      candidateUrls: urls,
-      redirectTo: lhmSubmit.redirectTo,
+      hmacUsed: Boolean(info.hmac),
     },
-    'lhm_submit_built',
+    'lhm_post_starting',
+  )
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), POST_TIMEOUT_MS)
+
+  let responseText = ''
+  let responseStatus = 0
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: controller.signal,
+    })
+    responseStatus = resp.status
+    responseText = await resp.text()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.error({ url, error: message }, 'lhm_post_network_error')
+    return {
+      success: false,
+      raw: { error: 'network_error', url, message },
+      mode: 'lhm',
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  let parsed: LhmResponse = {}
+  try {
+    parsed = JSON.parse(responseText) as LhmResponse
+  } catch {
+    logger.error(
+      { url, responseStatus, responseText: responseText.slice(0, 500) },
+      'lhm_post_invalid_json',
+    )
+    return {
+      success: false,
+      raw: { error: 'invalid_response', responseStatus, responseText },
+      mode: 'lhm',
+    }
+  }
+
+  const success = parsed.code === RESPONSE_CODE_SUCCESS
+
+  logger.info(
+    {
+      url,
+      responseStatus,
+      code: parsed.code,
+      message: parsed.message,
+      success,
+    },
+    success ? 'lhm_post_success' : 'lhm_post_rejected',
   )
 
   return {
-    success: true,
+    success,
     raw: {
       protocol: 'lhm',
+      url,
+      responseStatus,
+      code: parsed.code,
+      message: parsed.message,
       sessionLifetimeSec,
       idleTimeoutSec,
-      candidateCount: urls.length,
-      lhmKeys: Object.keys(lhm),
     },
     mode: 'lhm',
-    lhmSubmit,
   }
+}
+
+/**
+ * Redirect target pra onde o guest vai depois do LHM bem-sucedido. Usa o `req`
+ * original do SW quando válido, senão cai pro probe do Android/iOS que detecta
+ * internet disponível e dispensa o captive prompt.
+ */
+export function pickLhmRedirectTarget(req: string | undefined): string {
+  if (req && /^https?:\/\//i.test(req) && req.length <= 2048) return req
+  return 'http://connectivitycheck.gstatic.com/generate_204'
 }
