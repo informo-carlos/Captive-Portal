@@ -55,7 +55,6 @@ export function validatePhone(digits: string): string | null {
   const ddd = parseInt(digits.slice(0, 2), 10)
   if (!VALID_DDDS.includes(ddd)) return 'DDD inválido.'
 
-  // Celular com 11 dígitos deve começar com 9 após o DDD
   if (digits.length === 11 && digits[2] !== '9')
     return 'Número de celular inválido.'
 
@@ -95,9 +94,9 @@ export default function PhoneInput({
     <div className="w-full">
       <label
         htmlFor="phone"
-        className="mb-1 block text-sm font-medium text-gray-700"
+        className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-400"
       >
-        Número de celular
+        Numero de celular
       </label>
       <input
         id="phone"
@@ -109,14 +108,14 @@ export default function PhoneInput({
         onChange={handleChange}
         onBlur={handleBlur}
         disabled={disabled}
-        className={`w-full rounded-lg border px-4 py-3 text-lg text-gray-900 placeholder-gray-400 outline-none transition-colors focus:ring-2 ${
+        className={`w-full rounded-xl border px-4 py-3 text-base text-white bg-white/[0.04] placeholder-slate-600 outline-none transition-colors focus:ring-2 ${
           displayError
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
-            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
-        } disabled:bg-gray-100 disabled:text-gray-500`}
+            ? 'border-red-500/40 focus:border-red-500/50 focus:ring-red-500/15'
+            : 'border-white/[0.08] focus:border-edge-cyan/40 focus:ring-edge-cyan/15'
+        } disabled:opacity-50`}
       />
       {displayError && (
-        <p className="mt-1 text-sm text-red-600">{displayError}</p>
+        <p className="mt-1 text-sm text-red-400">{displayError}</p>
       )}
     </div>
   )

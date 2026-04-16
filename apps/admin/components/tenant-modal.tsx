@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import type { Tenant, CreateTenantRequest, UpdateTenantRequest } from '@captive-portal/shared'
 import { createTenant, updateTenant } from '../lib/api'
 import { ApiRequestError } from '../lib/api'
+import { useNotifications } from '../lib/notification-context'
 
 interface TenantModalProps {
   tenant: Tenant | null
@@ -27,6 +28,11 @@ interface FormData {
   sw_guest_pass: string
   zenvia_token: string
   zenvia_sender: string
+  session_duration_minutes: string
+  branding_logo_url: string
+  branding_primary_color: string
+  branding_secondary_color: string
+  branding_welcome_text: string
 }
 
 const EMPTY_FORM: FormData = {
@@ -45,10 +51,16 @@ const EMPTY_FORM: FormData = {
   sw_guest_pass: '',
   zenvia_token: '',
   zenvia_sender: '',
+  session_duration_minutes: '480',
+  branding_logo_url: '',
+  branding_primary_color: '#00e5c3',
+  branding_secondary_color: '#0a0e17',
+  branding_welcome_text: '',
 }
 
 export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
   const isEditing = !!tenant
+  const { add: notify } = useNotifications()
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -74,6 +86,11 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         sw_guest_pass: '',
         zenvia_token: '',
         zenvia_sender: '',
+        session_duration_minutes: String(tenant.session_duration_minutes ?? 480),
+        branding_logo_url: tenant.branding?.logo_url || '',
+        branding_primary_color: tenant.branding?.primary_color || '#00e5c3',
+        branding_secondary_color: tenant.branding?.secondary_color || '#0a0e17',
+        branding_welcome_text: tenant.branding?.welcome_text || '',
       })
     }
   }, [tenant])
@@ -91,9 +108,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     }
     if (!form.serial_primary.trim()) return 'Serial primário é obrigatório.'
 
-    // Campos do SonicWall só são obrigatórios em modo REST. No LHM o backend
-    // não fala com o SonicWall — quem fala é o navegador do usuário, com
-    // base nos parâmetros que o próprio SW envia no redirect inicial.
     if (form.sw_mode === 'rest') {
       if (form.sw_port.trim()) {
         const p = parseInt(form.sw_port)
@@ -109,6 +123,10 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     if (!isEditing) {
       if (!form.zenvia_token.trim()) return 'Token Zenvia é obrigatório.'
       if (!form.zenvia_sender.trim()) return 'Sender Zenvia é obrigatório.'
+    }
+    const sessionMin = parseInt(form.session_duration_minutes)
+    if (isNaN(sessionMin) || sessionMin < 15 || sessionMin > 1440) {
+      return 'Duracao da sessao deve estar entre 15 e 1440 minutos.'
     }
     return null
   }
@@ -131,9 +149,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         const data: UpdateTenantRequest = {
           name: form.name.trim(),
           serials: buildSerials(),
+          session_duration_minutes: parseInt(form.session_duration_minutes),
         }
-        // Sempre envia o sonicwall_config no edit (mesmo que só pra trocar de
-        // modo). O backend faz merge com o que já existe no banco.
         data.sonicwall_config = { mode: form.sw_mode }
         if (form.sw_mode === 'rest') {
           if (form.sw_host.trim()) data.sonicwall_config.host = form.sw_host.trim()
@@ -142,7 +159,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           if (form.sw_password.trim()) data.sonicwall_config.password = form.sw_password.trim()
           data.sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
         } else {
-          // LHM: porta opcional + guest service só se preenchido
           if (form.sw_lhm_port.trim()) data.sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
           if (form.sw_guest_user.trim()) data.sonicwall_config.guest_service_user = form.sw_guest_user.trim()
           if (form.sw_guest_pass.trim()) data.sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
@@ -150,7 +166,21 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         if (form.zenvia_token.trim()) data.zenvia_token = form.zenvia_token.trim()
         if (form.zenvia_sender.trim()) data.zenvia_sender = form.zenvia_sender.trim()
 
+        const branding: Record<string, string> = {}
+        if (form.branding_logo_url.trim()) branding.logo_url = form.branding_logo_url.trim()
+        if (form.branding_primary_color) branding.primary_color = form.branding_primary_color
+        if (form.branding_secondary_color) branding.secondary_color = form.branding_secondary_color
+        if (form.branding_welcome_text.trim()) branding.welcome_text = form.branding_welcome_text.trim()
+        data.branding = branding
+
         await updateTenant(tenant!.id, data)
+        notify({
+          type: 'tenant',
+          action: 'tenant_updated',
+          status: 'completed',
+          message: 'Configuração de tenant atualizada',
+          detail: form.name.trim(),
+        })
       } else {
         const sonicwall_config: CreateTenantRequest['sonicwall_config'] = {
           mode: form.sw_mode,
@@ -162,7 +192,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           sonicwall_config.password = form.sw_password.trim()
           sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
         } else {
-          // LHM: nada além do modo é obrigatório. Guest service só se preenchido.
           if (form.sw_lhm_port.trim()) sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
           if (form.sw_guest_user.trim()) sonicwall_config.guest_service_user = form.sw_guest_user.trim()
           if (form.sw_guest_pass.trim()) sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
@@ -175,9 +204,23 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           sonicwall_config,
           zenvia_token: form.zenvia_token.trim(),
           zenvia_sender: form.zenvia_sender.trim(),
+          session_duration_minutes: parseInt(form.session_duration_minutes),
+          branding: {
+            ...(form.branding_logo_url.trim() && { logo_url: form.branding_logo_url.trim() }),
+            primary_color: form.branding_primary_color,
+            secondary_color: form.branding_secondary_color,
+            ...(form.branding_welcome_text.trim() && { welcome_text: form.branding_welcome_text.trim() }),
+          },
         }
 
         await createTenant(data)
+        notify({
+          type: 'tenant',
+          action: 'tenant_created',
+          status: 'completed',
+          message: 'Novo tenant criado',
+          detail: `${form.name.trim()} — porta ${form.port}`,
+        })
       }
 
       onSuccess()
@@ -206,17 +249,24 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     return serials
   }
 
+  const inputClass = (field?: string) =>
+    `w-full rounded-lg border bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40 ${
+      fieldError?.field === field ? 'border-red-500/50' : 'border-t-input'
+    }`
+
+  const durationHours = parseInt(form.session_duration_minutes) / 60
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 pt-10 pb-10">
-      <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10 animate-modal-overlay">
+      <div className="w-full max-w-2xl rounded-xl border border-t-input bg-t-card shadow-xl animate-modal-content">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between border-b border-t-default px-6 py-4">
+          <h2 className="text-lg font-semibold text-t-primary">
             {isEditing ? 'Editar cliente' : 'Novo cliente'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-t-label hover:text-t-secondary transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -227,30 +277,28 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
               {error}
             </div>
           )}
 
           {/* Basic Info */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Informações básicas</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Informações básicas</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Nome *</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setField('name', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                    fieldError?.field === 'name' ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={inputClass('name')}
                   placeholder="Nome do cliente"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Porta * {isEditing && <span className="text-xs text-gray-400">(não editável)</span>}
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                  Porta * {isEditing && <span className="text-t-placeholder normal-case">(nao editavel)</span>}
                 </label>
                 <input
                   type="number"
@@ -259,38 +307,61 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   disabled={isEditing}
                   min={29000}
                   max={29999}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 ${
-                    fieldError?.field === 'port' ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`${inputClass('port')} disabled:opacity-40`}
                   placeholder="29000"
                 />
               </div>
             </div>
           </div>
 
+          {/* Session Duration */}
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Sessao Wi-Fi</h3>
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                Duracao da sessao (minutos) *
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={form.session_duration_minutes}
+                  onChange={(e) => setField('session_duration_minutes', e.target.value)}
+                  min={15}
+                  max={1440}
+                  className={`${inputClass()} w-40`}
+                  placeholder="480"
+                />
+                <span className="text-xs text-t-label">
+                  = {isNaN(durationHours) ? '—' : durationHours.toFixed(1)} horas
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] text-t-placeholder">
+                Tempo que o usuario fica conectado apos autenticação (15 min - 24h)
+              </p>
+            </div>
+          </div>
+
           {/* Serials */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Seriais SonicWall</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Seriais SonicWall</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Primário *</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Primario *</label>
                 <input
                   type="text"
                   value={form.serial_primary}
                   onChange={(e) => setField('serial_primary', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                    fieldError?.field === 'serial' ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={inputClass('serial')}
                   placeholder="SN-ABC123"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Secundário <span className="text-xs text-gray-400">(HA pair)</span></label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Secundario <span className="text-t-placeholder normal-case">(HA pair)</span></label>
                 <input
                   type="text"
                   value={form.serial_secondary}
                   onChange={(e) => setField('serial_secondary', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={inputClass()}
                   placeholder="SN-ABC124 (opcional)"
                 />
               </div>
@@ -299,21 +370,21 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* SonicWall Config */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Configuração SonicWall</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Configuração SonicWall</h3>
 
-            {/* Modo — sempre visível, dita o que aparece embaixo */}
+            {/* Modo — sempre visível */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Modo de integração</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Modo de integração</label>
                 <select
                   value={form.sw_mode}
                   onChange={(e) => setField('sw_mode', e.target.value as 'rest' | 'lhm')}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={inputClass()}
                 >
                   <option value="rest">REST API</option>
                   <option value="lhm">LHM (External Guest Auth)</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-[10px] text-t-placeholder">
                   {form.sw_mode === 'rest'
                     ? 'A VPS fala diretamente com a API REST do SonicWall — exige host e credenciais.'
                     : 'O navegador do usuário fala com o SonicWall (External Guest Auth). A VPS não precisa de host nem credenciais.'}
@@ -325,18 +396,18 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             {form.sw_mode === 'rest' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Host {!isEditing && '*'}</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Host {!isEditing && '*'}</label>
                   <input
                     type="text"
                     value={form.sw_host}
                     onChange={(e) => setField('sw_host', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass()}
                     placeholder="192.168.1.1"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Porta de management <span className="text-xs text-gray-400">(default 443)</span>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                    Porta de management <span className="text-t-placeholder normal-case">(default 443)</span>
                   </label>
                   <input
                     type="number"
@@ -344,39 +415,39 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                     onChange={(e) => setField('sw_port', e.target.value)}
                     min={1}
                     max={65535}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass()}
                     placeholder="4040"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuário {!isEditing && '*'}</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Usuário {!isEditing && '*'}</label>
                   <input
                     type="text"
                     value={form.sw_user}
                     onChange={(e) => setField('sw_user', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass()}
                     placeholder="admin"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
                     Senha {!isEditing && '*'}
-                    {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                    {isEditing && <span className="text-t-placeholder normal-case">(deixe vazio para manter)</span>}
                   </label>
                   <input
                     type="password"
                     value={form.sw_password}
                     onChange={(e) => setField('sw_password', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass()}
                     placeholder={isEditing ? '••••••••' : 'Senha do SonicWall'}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Firmware</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Firmware</label>
                   <select
                     value={form.sw_firmware}
                     onChange={(e) => setField('sw_firmware', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass()}
                   >
                     <option value="6">Gen 6</option>
                     <option value="7">Gen 7</option>
@@ -385,10 +456,10 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
               </div>
             )}
 
-            {/* Campos LHM — opcionais, só aparecem em modo LHM */}
+            {/* Campos LHM — só aparecem em modo LHM */}
             {form.sw_mode === 'lhm' && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="mb-3 text-xs text-amber-800">
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="mb-3 text-[10px] text-amber-400/80">
                   Em LHM o SonicWall envia tudo o que precisamos no redirect inicial
                   (sessionId, mgmtBaseUrl, ufi, mac, ip). Os campos abaixo são todos
                   opcionais — só preencha guest user/senha se o seu SonicWall estiver
@@ -396,38 +467,38 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 </p>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Porta LHM <span className="text-xs text-gray-400">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                      Porta LHM <span className="text-t-placeholder normal-case">(opcional)</span>
                     </label>
                     <input
                       type="number"
                       value={form.sw_lhm_port}
                       onChange={(e) => setField('sw_lhm_port', e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className={inputClass()}
                       placeholder="4043"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Usuário guest <span className="text-xs text-gray-400">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                      Usuário guest <span className="text-t-placeholder normal-case">(opcional)</span>
                     </label>
                     <input
                       type="text"
                       value={form.sw_guest_user}
                       onChange={(e) => setField('sw_guest_user', e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className={inputClass()}
                       placeholder="(deixe vazio se não exigido)"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Senha guest <span className="text-xs text-gray-400">(opcional)</span>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+                      Senha guest <span className="text-t-placeholder normal-case">(opcional)</span>
                     </label>
                     <input
                       type="password"
                       value={form.sw_guest_pass}
                       onChange={(e) => setField('sw_guest_pass', e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className={inputClass()}
                       placeholder={isEditing ? '••••••••' : '(deixe vazio se não exigido)'}
                     />
                   </div>
@@ -438,54 +509,176 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* Zenvia */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Zenvia (SMS)</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Zenvia (SMS)</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
                   Token {!isEditing && '*'}
-                  {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                  {isEditing && <span className="text-t-placeholder normal-case">(deixe vazio para manter)</span>}
                 </label>
                 <input
                   type="password"
                   value={form.zenvia_token}
                   onChange={(e) => setField('zenvia_token', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={inputClass()}
                   placeholder={isEditing ? '••••••••' : 'Token da API Zenvia'}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
                   Sender {!isEditing && '*'}
-                  {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+                  {isEditing && <span className="text-t-placeholder normal-case">(deixe vazio para manter)</span>}
                 </label>
                 <input
                   type="text"
                   value={form.zenvia_sender}
                   onChange={(e) => setField('zenvia_sender', e.target.value)}
                   maxLength={64}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={inputClass()}
                   placeholder={isEditing ? 'inalterado' : 'rafael.mosella'}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-[10px] text-t-placeholder">
                   Identificador do remetente na Zenvia (aparece como &ldquo;from&rdquo; no SMS).
                 </p>
               </div>
             </div>
           </div>
 
+          {/* Branding */}
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Branding do Portal Wi-Fi</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">URL do Logo</label>
+                <input
+                  type="url"
+                  value={form.branding_logo_url}
+                  onChange={(e) => setField('branding_logo_url', e.target.value)}
+                  className={inputClass()}
+                  placeholder="https://exemplo.com/logo.png"
+                />
+                <p className="mt-1 text-[10px] text-t-placeholder">
+                  URL publica da imagem do logo (PNG, SVG ou JPG). Deixe vazio para usar o icone padrao.
+                </p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Cor primaria</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={form.branding_primary_color}
+                    onChange={(e) => setField('branding_primary_color', e.target.value)}
+                    className="h-9 w-9 cursor-pointer rounded border border-t-input bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={form.branding_primary_color}
+                    onChange={(e) => setField('branding_primary_color', e.target.value)}
+                    className={`${inputClass()} flex-1`}
+                    placeholder="#00e5c3"
+                    maxLength={7}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-t-placeholder">Cor dos botoes e destaques</p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Cor de fundo</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={form.branding_secondary_color}
+                    onChange={(e) => setField('branding_secondary_color', e.target.value)}
+                    className="h-9 w-9 cursor-pointer rounded border border-t-input bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={form.branding_secondary_color}
+                    onChange={(e) => setField('branding_secondary_color', e.target.value)}
+                    className={`${inputClass()} flex-1`}
+                    placeholder="#0a0e17"
+                    maxLength={7}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-t-placeholder">Cor de fundo da tela de login</p>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Texto de boas-vindas</label>
+                <input
+                  type="text"
+                  value={form.branding_welcome_text}
+                  onChange={(e) => setField('branding_welcome_text', e.target.value)}
+                  className={inputClass()}
+                  placeholder="Bem-vindo ao Wi-Fi gratuito!"
+                  maxLength={500}
+                />
+                <p className="mt-1 text-[10px] text-t-placeholder">
+                  Mensagem exibida na tela de login (max 500 caracteres)
+                </p>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-2">Preview</label>
+              <div
+                className="relative overflow-hidden rounded-xl border border-t-default p-6"
+                style={{ backgroundColor: form.branding_secondary_color }}
+              >
+                <div className="mx-auto max-w-[200px] text-center">
+                  {form.branding_logo_url ? (
+                    <div className="mb-3 flex justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={form.branding_logo_url}
+                        alt="Logo preview"
+                        className="h-12 w-auto object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mb-3 flex justify-center">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: `${form.branding_primary_color}20` }}
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke={form.branding_primary_color} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs font-medium text-white/90">
+                    {form.branding_welcome_text || 'Conecte-se ao Wi-Fi'}
+                  </p>
+                  <div className="mt-2 h-6 rounded-md border border-white/10 bg-white/5" />
+                  <button
+                    type="button"
+                    className="mt-2 w-full rounded-md py-1.5 text-[10px] font-bold"
+                    style={{
+                      backgroundColor: form.branding_primary_color,
+                      color: form.branding_secondary_color,
+                    }}
+                  >
+                    Conectar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="flex justify-end gap-3 border-t border-t-default pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-muted hover:bg-t-hover transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar cliente'}
             </button>

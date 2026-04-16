@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { AdminUser, AdminRole, CreateUserRequest, UpdateUserRequest } from '@captive-portal/shared'
 import { createUser, updateUser, ApiRequestError } from '../lib/api'
+import { useNotifications } from '../lib/notification-context'
 
 interface UserModalProps {
   user: AdminUser | null
@@ -24,8 +25,12 @@ const EMPTY_FORM: FormData = {
   role: 'viewer',
 }
 
+const inputClass =
+  'w-full rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40'
+
 export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   const isEditing = !!user
+  const { add: notify } = useNotifications()
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -81,6 +86,13 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           data.password = form.password.trim()
         }
         await updateUser(user!.id, data)
+        notify({
+          type: 'user',
+          action: 'user_updated',
+          status: 'completed',
+          message: 'Usuário atualizado',
+          detail: `${form.name.trim()} (${form.role})`,
+        })
       } else {
         const data: CreateUserRequest = {
           name: form.name.trim(),
@@ -89,6 +101,13 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           role: form.role,
         }
         await createUser(data)
+        notify({
+          type: 'user',
+          action: 'user_created',
+          status: 'completed',
+          message: 'Novo usuario criado',
+          detail: `${form.name.trim()} (${form.role})`,
+        })
       }
       onSuccess()
     } catch (err) {
@@ -106,16 +125,16 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 pt-10 pb-10">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-t-overlay backdrop-blur-sm pt-10 pb-10 animate-modal-overlay">
+      <div className="w-full max-w-md rounded-xl border border-t-input bg-t-card shadow-xl animate-modal-content">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {isEditing ? 'Editar usuário' : 'Novo usuário'}
+        <div className="flex items-center justify-between border-b border-t-default px-6 py-4">
+          <h2 className="text-lg font-semibold text-t-primary">
+            {isEditing ? 'Editar usuario' : 'Novo usuario'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-t-label hover:text-t-secondary transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -126,57 +145,53 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Nome *</label>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                fieldError?.field === 'name' ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`${inputClass} ${fieldError?.field === 'name' ? 'border-red-500/50' : ''}`}
               placeholder="Nome completo"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Email *</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setField('email', e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                fieldError?.field === 'email' ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`${inputClass} ${fieldError?.field === 'email' ? 'border-red-500/50' : ''}`}
               placeholder="email@empresa.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
               Senha {isEditing ? '' : '*'}
-              {isEditing && <span className="text-xs text-gray-400">(deixe vazio para manter)</span>}
+              {isEditing && <span className="text-t-placeholder normal-case">(deixe vazio para manter)</span>}
             </label>
             <input
               type="password"
               value={form.password}
               onChange={(e) => setField('password', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
               placeholder={isEditing ? '••••••••' : 'Senha segura'}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Perfil *</label>
             <select
               value={form.role}
               onChange={(e) => setField('role', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             >
               <option value="viewer">Viewer (somente leitura)</option>
               <option value="admin">Admin (gerencia tenants)</option>
@@ -185,20 +200,20 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="flex justify-end gap-3 border-t border-t-default pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-muted hover:bg-t-hover transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar usuário'}
+              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar usuario'}
             </button>
           </div>
         </form>
