@@ -31,7 +31,7 @@ export default function LoginPage() {
       if (err instanceof ApiRequestError) {
         setError(err.message)
       } else {
-        setError('Erro de comunicacao com o servidor. Tente novamente.')
+        setError('Erro de comunicação com o servidor. Tente novamente.')
       }
     } finally {
       setLoading(false)
@@ -40,14 +40,14 @@ export default function LoginPage() {
 
   if (authLoading || user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0a0e17]">
+      <main className="flex min-h-screen items-center justify-center bg-edge-dark">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-edge-cyan border-t-transparent" />
       </main>
     )
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0a0e17] px-4 font-roboto">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-edge-dark px-4 font-roboto">
       {/* Animated background orbs */}
       <div className="pointer-events-none absolute inset-0">
         <div className="animate-float absolute left-[10%] top-[15%] h-72 w-72 rounded-full bg-edge-cyan/10 blur-3xl" />
@@ -152,12 +152,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-edge-cyan to-teal-400 px-4 py-3 text-sm font-bold text-[#0a0e17] shadow-lg shadow-edge-cyan/20 transition-all duration-300 hover:shadow-edge-cyan/30 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 focus:ring-offset-[#0a0e17] disabled:cursor-not-allowed disabled:opacity-60"
+              className="group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-edge-cyan to-teal-400 px-4 py-3 text-sm font-bold text-edge-dark shadow-lg shadow-edge-cyan/20 transition-all duration-300 hover:shadow-edge-cyan/30 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 focus:ring-offset-edge-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
               {loading ? (
                 <span className="relative flex items-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0a0e17] border-t-transparent" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge-dark border-t-transparent" />
                   Entrando...
                 </span>
               ) : (

@@ -232,9 +232,9 @@ export function WidgetConfigModal({ open, widget, onClose, onSave }: WidgetConfi
           </button>
           <button
             onClick={handleSave}
-            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-[#0a0e17] hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
+            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-edge-dark hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
           >
-            {isEditing ? 'Salvar alteracoes' : 'Adicionar widget'}
+            {isEditing ? 'Salvar alterações' : 'Adicionar widget'}
           </button>
         </div>
       </div>

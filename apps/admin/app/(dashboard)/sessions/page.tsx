@@ -82,9 +82,9 @@ export default function SessionsPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-t-primary">Sessoes Wi-Fi</h1>
+          <h1 className="text-2xl font-bold text-t-primary">Sessões Wi-Fi</h1>
           <p className="mt-1 text-sm text-t-label">
-            Historico de autenticacoes no portal captivo.
+            Histórico de autenticações no portal captivo.
           </p>
         </div>
         {sessions.length > 0 && (
@@ -148,7 +148,7 @@ export default function SessionsPage() {
         </div>
         <button
           onClick={() => { setAppliedPhone(phone); setPage(1) }}
-          className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
+          className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 transition-colors"
         >
           Filtrar
         </button>
@@ -227,12 +227,12 @@ export default function SessionsPage() {
       {/* Export Modal */}
       {showExport && (
         <ExportModal
-          title="Relatorio de Sessoes Wi-Fi"
-          subtitle={from || to ? `Periodo: ${from || '...'} a ${to || '...'}` : undefined}
+          title="Relatório de Sessões Wi-Fi"
+          subtitle={from || to ? `Período: ${from || '...'} a ${to || '...'}` : undefined}
           filenamePrefix="sessoes_wifi"
           metrics={[
             { label: 'Total de sessoes', value: String(pagination.total) },
-            { label: 'Pagina atual', value: `${sessions.length} registros` },
+            { label: 'Página atual', value: `${sessions.length} registros` },
             ...(from ? [{ label: 'Data inicio', value: from }] : []),
             ...(to ? [{ label: 'Data fim', value: to }] : []),
           ]}

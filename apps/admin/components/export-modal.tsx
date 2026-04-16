@@ -77,7 +77,7 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; icon: JSX.Element; d
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
       </svg>
     ),
-    description: 'Relatorio visual com cabecalho, metricas e tabela formatada',
+    description: 'Relatório visual com cabeçalho, métricas e tabela formatada',
   },
   {
     value: 'csv',
@@ -97,7 +97,7 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; icon: JSX.Element; d
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
       </svg>
     ),
-    description: 'Formato estruturado para integracao',
+    description: 'Formato estruturado para integração',
   },
 ]
 
@@ -936,7 +936,7 @@ function generatePDF(
       doc.setFontSize(7)
       doc.setTextColor(...TEXT_MUTED)
       doc.text(
-        `4Edge Captive Portal  •  Pagina ${currentPage} de ${totalPages}`,
+        `4Edge Captive Portal  •  Página ${currentPage} de ${totalPages}`,
         14,
         pageHeight - 8,
       )
@@ -1051,7 +1051,7 @@ export function ExportModal({
           <div>
             <h2 className="text-lg font-semibold text-t-primary">{title}</h2>
             <p className="mt-0.5 text-[11px] text-t-label">
-              {data.length} registro{data.length !== 1 ? 's' : ''} disponive{data.length !== 1 ? 'is' : 'l'} para exportacao
+              {data.length} registro{data.length !== 1 ? 's' : ''} disponive{data.length !== 1 ? 'is' : 'l'} para exportação
             </p>
           </div>
           <button onClick={onClose} className="text-t-label hover:text-t-secondary transition-colors">
@@ -1065,7 +1065,7 @@ export function ExportModal({
           {/* Format selection */}
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-t-muted mb-2">
-              Formato de exportacao
+              Formato de exportação
             </label>
             <div className="grid grid-cols-3 gap-2">
               {FORMAT_OPTIONS.map((opt) => (
@@ -1095,7 +1095,7 @@ export function ExportModal({
           {format === 'pdf' && (
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-t-muted mb-2">
-                Orientacao da pagina
+                Orientacao da página
               </label>
               <div className="flex gap-2">
                 <button
@@ -1175,7 +1175,7 @@ export function ExportModal({
                 onChange={(e) => setIncludeHeader(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-t-input accent-edge-cyan"
               />
-              <span className="text-xs text-t-secondary">Incluir cabecalho</span>
+              <span className="text-xs text-t-secondary">Incluir cabeçalho</span>
             </label>
           )}
 
@@ -1183,8 +1183,8 @@ export function ExportModal({
           {format === 'pdf' && metrics && metrics.length > 0 && (
             <div className="rounded-lg border border-edge-cyan/15 bg-edge-cyan/[0.03] p-3">
               <p className="text-[11px] text-t-muted">
-                O PDF incluira um cabecalho com branding, {metrics.length} card{metrics.length > 1 ? 's' : ''} de metricas
-                {chartData ? ', graficos visuais' : ''} e a tabela de dados com paginacao automatica.
+                O PDF incluira um cabeçalho com branding, {metrics.length} card{metrics.length > 1 ? 's' : ''} de métricas
+                {chartData ? ', gráficos visuais' : ''} e a tabela de dados com páginacao automatica.
               </p>
             </div>
           )}
@@ -1207,7 +1207,7 @@ export function ExportModal({
               type="button"
               onClick={handleExport}
               disabled={enabledCount === 0 || exported}
-              className="flex items-center gap-2 rounded-lg bg-edge-cyan px-5 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-edge-cyan px-5 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
               {exported ? (
                 <>

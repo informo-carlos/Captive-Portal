@@ -13,9 +13,10 @@ const config: Config = {
         foreground: "var(--foreground)",
         "edge-cyan": "rgb(var(--color-primary-rgb, 0 229 195) / <alpha-value>)",
         "edge-dark": "#0a0e17",
+        "edge-card": "#0d1219",
       },
       fontFamily: {
-        roboto: ["Roboto", "sans-serif"],
+        roboto: ["var(--font-roboto)", "Roboto", "sans-serif"],
       },
     },
   },

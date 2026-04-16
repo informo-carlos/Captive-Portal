@@ -75,7 +75,7 @@ export default function DashboardPage() {
   const cards = summary
     ? [
         { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR'), icon: 'sessions' },
-        { label: 'Usuarios unicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), icon: 'users' },
+        { label: 'Usuários únicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), icon: 'users' },
         { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR'), icon: 'attempts' },
         { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%`, icon: 'rate' },
       ]
@@ -88,7 +88,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-t-primary">System Overview</h1>
           <p className="mt-1 text-sm text-t-label">
-            Telemetria e metricas de autenticacao Wi-Fi.
+            Telemetria e métricas de autenticação Wi-Fi.
           </p>
         </div>
         {summary && (
@@ -194,7 +194,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="glass-card rounded-xl p-6 lg:col-span-2">
               <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
-                Sessoes por dia
+                Sessões por dia
               </h2>
               {summary.by_day.length > 0 ? (
                 <SessionsChart data={summary.by_day} />
@@ -221,7 +221,7 @@ export default function DashboardPage() {
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="glass-card rounded-xl p-6">
                 <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
-                  Sessoes por tenant
+                  Sessões por tenant
                 </h2>
                 <TenantDistributionChart data={summary.by_tenant} />
               </div>
@@ -235,8 +235,8 @@ export default function DashboardPage() {
                   <thead className="bg-t-thead">
                     <tr>
                       <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Sessoes</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Usuarios unicos</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Sessões</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Usuários únicos</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-t-default">
@@ -258,12 +258,12 @@ export default function DashboardPage() {
       {/* Export Modal */}
       {showExport && summary && (
         <ExportModal
-          title="Relatorio System Overview"
-          subtitle={`Periodo: ${from || '...'} a ${to || '...'}`}
+          title="Relatório System Overview"
+          subtitle={`Período: ${from || '...'} a ${to || '...'}`}
           filenamePrefix="relatorio_overview"
           metrics={[
             { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR') },
-            { label: 'Usuarios unicos', value: summary.totals.unique_phones.toLocaleString('pt-BR') },
+            { label: 'Usuários únicos', value: summary.totals.unique_phones.toLocaleString('pt-BR') },
             { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR') },
             { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%` },
           ]}
@@ -273,7 +273,7 @@ export default function DashboardPage() {
                 const [, m, day] = d.date.split('-')
                 return `${day}/${m}`
               }),
-              series: { label: 'Sessoes', values: summary.by_day.map((d) => d.sessions) },
+              series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
             } : undefined,
             donutChart: {
               successRate: summary.totals.success_rate,
@@ -289,12 +289,12 @@ export default function DashboardPage() {
             isSuperadmin && summary.by_tenant.length > 0
               ? [
                   { key: 'tenant_name', label: 'Tenant', enabled: true },
-                  { key: 'sessions', label: 'Sessoes', enabled: true },
-                  { key: 'unique_phones', label: 'Usuarios unicos', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
+                  { key: 'unique_phones', label: 'Usuários únicos', enabled: true },
                 ]
               : [
                   { key: 'date', label: 'Data', enabled: true },
-                  { key: 'sessions', label: 'Sessoes', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
                 ]
           }
           data={

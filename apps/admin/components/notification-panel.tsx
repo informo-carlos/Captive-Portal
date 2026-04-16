@@ -20,7 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   user_created: 'Criacao de usuario',
   user_updated: 'Atualizacao de usuario',
   user_deleted: 'Exclusao de usuario',
-  login: 'Autenticacao',
+  login: 'Autenticação',
 }
 
 const STATUS_CONFIG: Record<ActivityStatus, { label: string; dot: string; bg: string }> = {
@@ -245,7 +245,7 @@ export function NotificationPanel({ open, onClose, anchorRef }: NotificationPane
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
                 <p className="mt-2 text-sm text-t-label">Nenhuma operacao em andamento</p>
-                <p className="mt-1 text-[11px] text-t-label/60">Operacoes ativas aparecerao aqui.</p>
+                <p className="mt-1 text-[11px] text-t-label/60">Operações ativas aparecerao aqui.</p>
               </>
             ) : (
               <>
@@ -253,7 +253,7 @@ export function NotificationPanel({ open, onClose, anchorRef }: NotificationPane
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
                 </svg>
                 <p className="mt-2 text-sm text-t-label">Nenhuma atividade registrada</p>
-                <p className="mt-1 text-[11px] text-t-label/60">Acoes como criar tenants e usuarios aparecerao aqui.</p>
+                <p className="mt-1 text-[11px] text-t-label/60">Ações como criar tenants e usuarios aparecerao aqui.</p>
               </>
             )}
           </div>

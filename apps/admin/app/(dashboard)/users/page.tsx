@@ -55,7 +55,7 @@ export default function UsersPage() {
         type: 'user',
         action: 'user_deleted',
         status: 'completed',
-        message: 'Usuario deletado',
+        message: 'Usuário deletado',
         detail: deleted?.name || id,
       })
       setConfirmDeleteId(null)
@@ -88,14 +88,14 @@ export default function UsersPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-t-primary">Usuarios Admin</h1>
+            <h1 className="text-2xl font-bold text-t-primary">Usuários Admin</h1>
             <p className="mt-1 text-sm text-t-label">
               Gerencie os usuarios com acesso ao painel.
             </p>
           </div>
           <button
             onClick={() => setModalUser(null)}
-            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
+            className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 transition-colors"
           >
             Novo usuario
           </button>
@@ -117,7 +117,7 @@ export default function UsersPage() {
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Email</th>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Perfil</th>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Ultimo login</th>
-                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Acoes</th>
+                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-t-default">

@@ -55,7 +55,7 @@ export function SuccessRateChart({ successRate, totalAttempts, totalSessions }: 
       </div>
       <div className="mt-4 flex gap-6 text-xs">
         <div className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#00e5c3]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-edge-cyan" />
           <span className="text-t-muted">{totalSessions.toLocaleString('pt-BR')} aprovadas</span>
         </div>
         <div className="flex items-center gap-1.5">

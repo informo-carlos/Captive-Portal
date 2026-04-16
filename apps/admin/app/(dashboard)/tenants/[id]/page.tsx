@@ -195,7 +195,7 @@ export default function TenantDetailPage() {
             </button>
             <button
               onClick={() => setModalOpen(true)}
-              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 transition-colors"
             >
               Editar
             </button>
@@ -263,12 +263,12 @@ export default function TenantDetailPage() {
             <div className="mt-3 h-px bg-gradient-to-r from-edge-cyan/30 to-transparent" />
           </div>
           <div className="glass-card rounded-xl p-5">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">Sessoes ultimos 30 dias</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">Sessões últimos 30 dias</p>
             <p className="mt-2 text-3xl font-bold text-t-primary">{tenant.stats.sessions_last_30d.toLocaleString('pt-BR')}</p>
             <div className="mt-3 h-px bg-gradient-to-r from-edge-cyan/30 to-transparent" />
           </div>
           <div className="glass-card rounded-xl p-5">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">Ultima autenticacao</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">Ultima autenticação</p>
             <p className="mt-2 text-lg font-semibold text-t-primary">
               {tenant.stats.last_auth_at
                 ? new Date(tenant.stats.last_auth_at).toLocaleString('pt-BR')
@@ -283,7 +283,7 @@ export default function TenantDetailPage() {
           {/* Basic Info */}
           <div className="glass-card rounded-xl">
             <div className="border-b border-t-default px-6 py-4">
-              <h2 className="text-sm font-semibold text-t-secondary">Informacoes gerais</h2>
+              <h2 className="text-sm font-semibold text-t-secondary">Informações gerais</h2>
             </div>
             <div className="px-6 py-4 space-y-3">
               <InfoRow label="ID" value={tenant.id} mono />
@@ -299,7 +299,7 @@ export default function TenantDetailPage() {
           {/* SonicWall Config */}
           <div className="glass-card rounded-xl">
             <div className="border-b border-t-default px-6 py-4">
-              <h2 className="text-sm font-semibold text-t-secondary">Configuracao SonicWall</h2>
+              <h2 className="text-sm font-semibold text-t-secondary">Configuração SonicWall</h2>
             </div>
             <div className="px-6 py-4 space-y-3">
               {tenant.sonicwall_config ? (
@@ -309,7 +309,7 @@ export default function TenantDetailPage() {
                     <>
                       <InfoRow label="Host" value={tenant.sonicwall_config.host || '-'} mono />
                       <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
-                      <InfoRow label="Usuario" value={tenant.sonicwall_config.user || '-'} />
+                      <InfoRow label="Usuário" value={tenant.sonicwall_config.user || '-'} />
                       <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
                     </>
                   )}
@@ -321,7 +321,7 @@ export default function TenantDetailPage() {
                   )}
                 </>
               ) : (
-                <p className="text-sm text-t-label">Nenhuma configuracao disponivel.</p>
+                <p className="text-sm text-t-label">Nenhuma configuracao disponível.</p>
               )}
             </div>
           </div>

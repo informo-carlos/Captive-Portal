@@ -43,7 +43,7 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
         if (e.target === backdropRef.current) onClose()
       }}
     >
-      <div className="animate-scale-in relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d1219] shadow-2xl">
+      <div className="animate-scale-in relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-white/[0.08] bg-edge-card shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
           <h2 className="text-lg font-bold text-white">Termos de Uso e Politica de Privacidade</h2>
@@ -68,9 +68,9 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
             <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
               <li><strong className="text-slate-300">Nome completo</strong> — informado no momento do cadastro.</li>
               <li><strong className="text-slate-300">Numero de telefone celular</strong> — utilizado para envio do codigo de verificacao (OTP) via SMS.</li>
-              <li><strong className="text-slate-300">Endereco MAC do dispositivo</strong> — identificador unico do seu dispositivo na rede.</li>
-              <li><strong className="text-slate-300">Endereco IP</strong> — atribuido ao seu dispositivo durante a conexao.</li>
-              <li><strong className="text-slate-300">Data e horario de acesso</strong> — registro do momento da autenticacao.</li>
+              <li><strong className="text-slate-300">Endereço MAC do dispositivo</strong> — identificador único do seu dispositivo na rede.</li>
+              <li><strong className="text-slate-300">Endereço IP</strong> — atribuido ao seu dispositivo durante a conexão.</li>
+              <li><strong className="text-slate-300">Data e horario de acesso</strong> — registro do momento da autenticação.</li>
             </ul>
           </section>
 
@@ -78,8 +78,8 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
             <h3 className="mb-2 text-base font-semibold text-white">2. Finalidade do Tratamento</h3>
             <p>Os dados coletados sao utilizados exclusivamente para:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
-              <li>Autenticacao e liberacao do acesso a rede Wi-Fi.</li>
-              <li>Cumprimento de obrigacoes legais previstas no <strong className="text-slate-300">Marco Civil da Internet (Lei 12.965/2014)</strong>, que exige a guarda dos registros de conexao pelo prazo minimo de 1 (um) ano.</li>
+              <li>Autenticação e liberacao do acesso a rede Wi-Fi.</li>
+              <li>Cumprimento de obrigações legais previstas no <strong className="text-slate-300">Marco Civil da Internet (Lei 12.965/2014)</strong>, que exige a guarda dos registros de conexão pelo prazo mínimo de 1 (um) ano.</li>
               <li>Seguranca da rede e prevencao de uso indevido.</li>
               <li>Geracao de relatorios estatisticos anonimizados sobre o uso da rede.</li>
             </ul>
@@ -92,7 +92,7 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
               <li><strong className="text-slate-300">Consentimento</strong> (Art. 7, I) — ao aceitar estes termos, voce autoriza o tratamento dos seus dados para as finalidades descritas.</li>
-              <li><strong className="text-slate-300">Cumprimento de obrigacao legal</strong> (Art. 7, II) — guarda de registros de conexao conforme o Marco Civil da Internet.</li>
+              <li><strong className="text-slate-300">Cumprimento de obrigacao legal</strong> (Art. 7, II) — guarda de registros de conexão conforme o Marco Civil da Internet.</li>
               <li><strong className="text-slate-300">Interesse legitimo</strong> (Art. 7, IX) — seguranca da rede e prevencao de fraudes.</li>
             </ul>
           </section>
@@ -100,7 +100,7 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
           <section className="mb-4">
             <h3 className="mb-2 text-base font-semibold text-white">4. Armazenamento e Retencao</h3>
             <p>
-              Os registros de conexao sao armazenados de forma segura, com criptografia, pelo periodo de <strong className="text-slate-300">5 (cinco) anos</strong>, em conformidade com as exigencias legais e politicas internas de seguranca. Apos esse periodo, os dados sao anonimizados ou excluidos.
+              Os registros de conexão sao armazenados de forma segura, com criptografia, pelo periodo de <strong className="text-slate-300">5 (cinco) anos</strong>, em conformidade com as exigencias legais e politicas internas de seguranca. Apos esse periodo, os dados sao anonimizados ou excluidos.
             </p>
           </section>
 
@@ -133,7 +133,7 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
           <section>
             <h3 className="mb-2 text-base font-semibold text-white">7. Consequencia da Recusa</h3>
             <p>
-              Caso voce nao aceite estes termos, <strong className="text-slate-300">nao sera possivel liberar o acesso a rede Wi-Fi</strong>, uma vez que a coleta dos dados e necessaria para a autenticacao e para o cumprimento das obrigacoes legais.
+              Caso voce nao aceite estes termos, <strong className="text-slate-300">nao sera possível liberar o acesso a rede Wi-Fi</strong>, uma vez que a coleta dos dados e necessária para a autenticação e para o cumprimento das obrigações legais.
             </p>
           </section>
         </div>
@@ -148,7 +148,7 @@ export default function TermsModal({ open, onClose, onAccept }: TermsModalProps)
           </button>
           <button
             onClick={onAccept}
-            className="rounded-xl bg-edge-cyan px-5 py-2.5 text-sm font-bold text-[#0a0e17] transition-all hover:shadow-lg hover:shadow-edge-cyan/20"
+            className="rounded-xl bg-edge-cyan px-5 py-2.5 text-sm font-bold text-edge-dark transition-all hover:shadow-lg hover:shadow-edge-cyan/20"
           >
             Li e aceito os termos
           </button>

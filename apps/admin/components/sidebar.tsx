@@ -15,8 +15,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'chart' },
   { label: 'Builder', href: '/builder', icon: 'builder' },
   { label: 'Tenants', href: '/tenants', icon: 'building' },
-  { label: 'Sessoes', href: '/sessions', icon: 'wifi' },
-  { label: 'Usuarios', href: '/users', icon: 'users', minRole: 'superadmin' },
+  { label: 'Sessões', href: '/sessions', icon: 'wifi' },
+  { label: 'Usuários', href: '/users', icon: 'users', minRole: 'superadmin' },
   { label: 'Audit Log', href: '/audit', icon: 'shield', minRole: 'superadmin' },
 ]
 

@@ -64,7 +64,7 @@ export function SessionsChart({ data }: SessionsChartProps) {
               if (payload?.[0]?.payload?.date) return payload[0].payload.date
               return ''
             }}
-            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
             contentStyle={{
               borderRadius: '8px',
               border: `1px solid ${tooltipBorder}`,

@@ -178,7 +178,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           type: 'tenant',
           action: 'tenant_updated',
           status: 'completed',
-          message: 'Configuracao de tenant atualizada',
+          message: 'Configuração de tenant atualizada',
           detail: form.name.trim(),
         })
       } else {
@@ -284,7 +284,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* Basic Info */}
           <div className="space-y-4">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Informacoes basicas</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Informações básicas</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Nome *</label>
@@ -336,7 +336,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                 </span>
               </div>
               <p className="mt-1 text-[10px] text-t-placeholder">
-                Tempo que o usuario fica conectado apos autenticacao (15 min - 24h)
+                Tempo que o usuario fica conectado apos autenticação (15 min - 24h)
               </p>
             </div>
           </div>
@@ -370,12 +370,12 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* SonicWall Config */}
           <div className="space-y-4">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Configuracao SonicWall</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Configuração SonicWall</h3>
 
             {/* Modo — sempre visível */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Modo de integracao</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Modo de integração</label>
                 <select
                   value={form.sw_mode}
                   onChange={(e) => setField('sw_mode', e.target.value as 'rest' | 'lhm')}
@@ -420,7 +420,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Usuario {!isEditing && '*'}</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Usuário {!isEditing && '*'}</label>
                   <input
                     type="text"
                     value={form.sw_user}
@@ -480,7 +480,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
-                      Usuario guest <span className="text-t-placeholder normal-case">(opcional)</span>
+                      Usuário guest <span className="text-t-placeholder normal-case">(opcional)</span>
                     </label>
                     <input
                       type="text"
@@ -678,9 +678,9 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar cliente'}
+              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar cliente'}
             </button>
           </div>
         </form>

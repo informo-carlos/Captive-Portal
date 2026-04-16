@@ -14,6 +14,7 @@ const config: Config = {
         "edge-cyan": "#00e5c3",
         "edge-dark": "#0a0e17",
         "edge-card": "#0d1219",
+        "edge-blue": "#007bbe",
         "edge-border": "rgba(255,255,255,0.08)",
         // Theme-aware colors
         "t-bg": "var(--bg-primary)",
@@ -37,7 +38,7 @@ const config: Config = {
         "t-input": "var(--border-input)",
       },
       fontFamily: {
-        roboto: ["Roboto", "sans-serif"],
+        roboto: ["var(--font-roboto)", "Roboto", "sans-serif"],
       },
     },
   },

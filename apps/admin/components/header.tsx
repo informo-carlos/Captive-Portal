@@ -56,7 +56,7 @@ export function Header() {
               <span className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold ${
                 runningCount > 0
                   ? 'bg-blue-500 text-white animate-pulse'
-                  : 'bg-edge-cyan text-[#0a0e17]'
+                  : 'bg-edge-cyan text-edge-dark'
               }`}>
                 {runningCount > 0 ? runningCount : unreadCount > 9 ? '9+' : unreadCount}
               </span>

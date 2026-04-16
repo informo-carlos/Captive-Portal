@@ -14,9 +14,9 @@ const ACTION_LABELS: Record<string, { label: string; className: string }> = {
   tenant_deactivated: { label: 'Tenant desativado', className: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' },
   tenant_activated: { label: 'Tenant ativado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
   tenant_deleted: { label: 'Tenant deletado', className: 'bg-red-500/10 text-red-400 border border-red-500/20' },
-  user_created: { label: 'Usuario criado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
-  user_updated: { label: 'Usuario atualizado', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' },
-  user_deleted: { label: 'Usuario deletado', className: 'bg-red-500/10 text-red-400 border border-red-500/20' },
+  user_created: { label: 'Usuário criado', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+  user_updated: { label: 'Usuário atualizado', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' },
+  user_deleted: { label: 'Usuário deletado', className: 'bg-red-500/10 text-red-400 border border-red-500/20' },
 }
 
 export default function AuditPage() {
@@ -101,7 +101,7 @@ export default function AuditPage() {
           <div>
             <h1 className="text-2xl font-bold text-t-primary">Audit Log</h1>
             <p className="mt-1 text-sm text-t-label">
-              Registro de todas as acoes administrativas.
+              Registro de todas as ações administrativas.
             </p>
           </div>
           {logs.length > 0 && (
@@ -133,9 +133,9 @@ export default function AuditPage() {
               <option value="tenant_deactivated">Tenant desativado</option>
               <option value="tenant_activated">Tenant ativado</option>
               <option value="tenant_deleted">Tenant deletado</option>
-              <option value="user_created">Usuario criado</option>
-              <option value="user_updated">Usuario atualizado</option>
-              <option value="user_deleted">Usuario deletado</option>
+              <option value="user_created">Usuário criado</option>
+              <option value="user_updated">Usuário atualizado</option>
+              <option value="user_deleted">Usuário deletado</option>
             </select>
           </div>
           <div>
@@ -171,7 +171,7 @@ export default function AuditPage() {
             <thead className="bg-t-thead">
               <tr>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Data/Hora</th>
-                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Usuario</th>
+                <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Usuário</th>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Acao</th>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Detalhes</th>
                 <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">IP</th>
@@ -234,17 +234,17 @@ export default function AuditPage() {
         {/* Export Modal */}
         {showExport && (
           <ExportModal
-            title="Relatorio de Audit Log"
-            subtitle={from || to ? `Periodo: ${from || '...'} a ${to || '...'}` : undefined}
+            title="Relatório de Audit Log"
+            subtitle={from || to ? `Período: ${from || '...'} a ${to || '...'}` : undefined}
             filenamePrefix="audit_log"
             metrics={[
               { label: 'Total de registros', value: String(pagination.total) },
-              { label: 'Pagina atual', value: `${logs.length} registros` },
+              { label: 'Página atual', value: `${logs.length} registros` },
               ...(action ? [{ label: 'Filtro de acao', value: ACTION_LABELS[action]?.label || action }] : []),
             ]}
             columns={[
               { key: 'created_at', label: 'Data/Hora', enabled: true },
-              { key: 'user_name', label: 'Usuario', enabled: true },
+              { key: 'user_name', label: 'Usuário', enabled: true },
               { key: 'user_email', label: 'Email', enabled: true },
               { key: 'action', label: 'Acao', enabled: true },
               { key: 'payload', label: 'Detalhes', enabled: true },

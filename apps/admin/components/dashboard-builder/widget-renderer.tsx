@@ -146,7 +146,7 @@ function AreaChartWidget({ config, data }: { config: WidgetConfig; data: ReportS
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} allowDecimals={false} />
           <Tooltip
-            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
             contentStyle={{ borderRadius: '8px', border: `1px solid ${colors.tooltipBorder}`, backgroundColor: colors.tooltipBg, color: colors.tooltipText, fontSize: '11px' }}
           />
           <Area type="monotone" dataKey="sessions" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={{ r: 2, fill: color, strokeWidth: 0 }} />
@@ -179,7 +179,7 @@ function LineChartWidget({ config, data }: { config: WidgetConfig; data: ReportS
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} allowDecimals={false} />
           <Tooltip
-            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
             contentStyle={{ borderRadius: '8px', border: `1px solid ${colors.tooltipBorder}`, backgroundColor: colors.tooltipBg, color: colors.tooltipText, fontSize: '11px' }}
           />
           <Line type="monotone" dataKey="sessions" stroke={color} strokeWidth={2} dot={{ r: 3, fill: color, strokeWidth: 0 }} activeDot={{ r: 5, fill: color }} />
@@ -211,7 +211,7 @@ function BarChartWidget({ config, data }: { config: WidgetConfig; data: ReportSu
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} allowDecimals={false} />
             <Tooltip
-              formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+              formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
               labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
               contentStyle={{ borderRadius: '8px', border: `1px solid ${colors.tooltipBorder}`, backgroundColor: colors.tooltipBg, color: colors.tooltipText, fontSize: '11px' }}
             />
@@ -241,7 +241,7 @@ function BarChartWidget({ config, data }: { config: WidgetConfig; data: ReportSu
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: colors.tickColor }} axisLine={{ stroke: colors.axisColor }} tickLine={false} allowDecimals={false} />
           <Tooltip
-            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+            formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
             contentStyle={{ borderRadius: '8px', border: `1px solid ${colors.tooltipBorder}`, backgroundColor: colors.tooltipBg, color: colors.tooltipText, fontSize: '11px' }}
           />
           <Bar dataKey="sessions" radius={[4, 4, 0, 0]} fill={color} />
@@ -316,7 +316,7 @@ function PieChartWidget({ config, data }: { config: WidgetConfig; data: ReportSu
               ))}
             </Pie>
             <Tooltip
-              formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessoes']}
+              formatter={(value) => [Number(value).toLocaleString('pt-BR'), 'Sessões']}
               contentStyle={{ borderRadius: '8px', border: `1px solid ${colors.tooltipBorder}`, backgroundColor: colors.tooltipBg, color: colors.tooltipText, fontSize: '11px' }}
             />
           </PieChart>
@@ -339,8 +339,8 @@ function TableWidget({ config, data }: { config: WidgetConfig; data: ReportSumma
           <thead className="bg-t-thead sticky top-0">
             <tr>
               <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
-              <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Sessoes</th>
-              <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Usuarios</th>
+              <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Sessões</th>
+              <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Usuários</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-t-default">
@@ -365,7 +365,7 @@ function TableWidget({ config, data }: { config: WidgetConfig; data: ReportSumma
         <thead className="bg-t-thead sticky top-0">
           <tr>
             <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-t-label">Data</th>
-            <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Sessoes</th>
+            <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-t-label">Sessões</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-t-default">

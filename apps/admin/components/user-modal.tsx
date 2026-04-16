@@ -90,7 +90,7 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
           type: 'user',
           action: 'user_updated',
           status: 'completed',
-          message: 'Usuario atualizado',
+          message: 'Usuário atualizado',
           detail: `${form.name.trim()} (${form.role})`,
         })
       } else {
@@ -211,9 +211,9 @@ export function UserModal({ user, onClose, onSuccess }: UserModalProps) {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar usuario'}
+              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar usuario'}
             </button>
           </div>
         </form>

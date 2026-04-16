@@ -186,7 +186,7 @@ export default function TenantsPage() {
           {canEdit && (
             <button
               onClick={handleCreate}
-              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-[#0a0e17] hover:bg-edge-cyan/90 transition-colors"
+              className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 transition-colors"
             >
               + Add New Tenant
             </button>
@@ -226,7 +226,7 @@ export default function TenantsPage() {
               <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Seriais</th>
               <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Criado em</th>
               {canEdit && (
-                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Acoes</th>
+                <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Ações</th>
               )}
             </tr>
           </thead>
@@ -330,7 +330,7 @@ export default function TenantsPage() {
       {/* Export Modal */}
       {showExport && (
         <ExportModal
-          title="Relatorio de Tenants"
+          title="Relatório de Tenants"
           filenamePrefix="tenants"
           metrics={[
             { label: 'Total de tenants', value: String(pagination.total) },

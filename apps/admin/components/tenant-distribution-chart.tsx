@@ -70,7 +70,7 @@ export function TenantDistributionChart({ data }: TenantDistributionChartProps) 
           />
           <Tooltip
             formatter={(value, name) => {
-              const label = name === 'sessions' ? 'Sessoes' : 'Usuarios unicos'
+              const label = name === 'sessions' ? 'Sessões' : 'Usuários únicos'
               return [Number(value).toLocaleString('pt-BR'), label]
             }}
             labelFormatter={(_, payload) => {

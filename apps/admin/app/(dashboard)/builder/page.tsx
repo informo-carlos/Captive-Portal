@@ -220,7 +220,7 @@ export default function DashboardBuilderPage() {
                 setEditingWidget(null)
                 setShowWidgetModal(true)
               }}
-              className="flex items-center gap-2 rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-[#0a0e17] hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
+              className="flex items-center gap-2 rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-edge-dark hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -408,7 +408,7 @@ export default function DashboardBuilderPage() {
               setNewLayoutName('')
               setShowLayoutNameModal(true)
             }}
-            className="flex items-center gap-2 rounded-lg bg-edge-cyan px-5 py-2.5 text-sm font-bold text-[#0a0e17] hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
+            className="flex items-center gap-2 rounded-lg bg-edge-cyan px-5 py-2.5 text-sm font-bold text-edge-dark hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -449,7 +449,7 @@ export default function DashboardBuilderPage() {
                   setEditingWidget(null)
                   setShowWidgetModal(true)
                 }}
-                className="flex items-center gap-2 rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-[#0a0e17] hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
+                className="flex items-center gap-2 rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-edge-dark hover:shadow-lg hover:shadow-edge-cyan/20 transition-all"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -521,8 +521,8 @@ export default function DashboardBuilderPage() {
       {/* Export Modal */}
       {showExport && summary && activeLayout && (
         <ExportModal
-          title={`Relatorio — ${activeLayout.name}`}
-          subtitle={`Periodo: ${from || '...'} a ${to || '...'}`}
+          title={`Relatório — ${activeLayout.name}`}
+          subtitle={`Período: ${from || '...'} a ${to || '...'}`}
           filenamePrefix={`dashboard_${activeLayout.name.replace(/\s+/g, '_').toLowerCase()}`}
           metrics={activeLayout.widgets
             .filter((w) => w.type === 'metric-card' && w.metricSource)
@@ -542,13 +542,13 @@ export default function DashboardBuilderPage() {
             areaChart: activeLayout.widgets.some((w) => w.type === 'area-chart' && w.dataSource === 'sessions_by_day') && summary.by_day.length > 0
               ? {
                   labels: summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` }),
-                  series: { label: 'Sessoes', values: summary.by_day.map((d) => d.sessions) },
+                  series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
                 }
               : undefined,
             lineChart: activeLayout.widgets.some((w) => w.type === 'line-chart' && w.dataSource === 'sessions_by_day') && summary.by_day.length > 0
               ? {
                   labels: summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` }),
-                  series: { label: 'Sessoes', values: summary.by_day.map((d) => d.sessions) },
+                  series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
                 }
               : undefined,
             donutChart: activeLayout.widgets.some((w) => w.type === 'pie-chart' && w.dataSource === 'success_vs_failure')
@@ -581,12 +581,12 @@ export default function DashboardBuilderPage() {
             summary.by_tenant.length > 0
               ? [
                   { key: 'tenant_name', label: 'Tenant', enabled: true },
-                  { key: 'sessions', label: 'Sessoes', enabled: true },
-                  { key: 'unique_phones', label: 'Usuarios unicos', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
+                  { key: 'unique_phones', label: 'Usuários únicos', enabled: true },
                 ]
               : [
                   { key: 'date', label: 'Data', enabled: true },
-                  { key: 'sessions', label: 'Sessoes', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
                 ]
           }
           data={
@@ -676,7 +676,7 @@ export default function DashboardBuilderPage() {
                   setShowLayoutNameModal(false)
                 }}
                 disabled={!newLayoutName.trim()}
-                className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-[#0a0e17] hover:shadow-lg hover:shadow-edge-cyan/20 transition-all disabled:opacity-40"
+                className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-bold text-edge-dark hover:shadow-lg hover:shadow-edge-cyan/20 transition-all disabled:opacity-40"
               >
                 {renamingLayout ? 'Renomear' : 'Criar'}
               </button>
