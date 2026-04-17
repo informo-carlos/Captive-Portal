@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import type { WifiSession, Tenant, Pagination } from '@captive-portal/shared'
 import { getSessions, getTenants, ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
+import { SkeletonTableRows } from '../../../components/skeleton'
+import { ExportModal } from '../../../components/export-modal'
 
 export default function SessionsPage() {
   const { hasRole } = useAuth()
@@ -22,6 +24,7 @@ export default function SessionsPage() {
   const [phone, setPhone] = useState('')
   const [appliedPhone, setAppliedPhone] = useState('')
   const [page, setPage] = useState(1)
+  const [showExport, setShowExport] = useState(false)
 
   const fetchTenants = useCallback(async () => {
     if (!isSuperadmin) return
@@ -77,22 +80,35 @@ export default function SessionsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Sessoes Wi-Fi</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Historico de autenticacoes no portal captivo.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-t-primary">Sessões Wi-Fi</h1>
+          <p className="mt-1 text-sm text-t-label">
+            Histórico de autenticações no portal captivo.
+          </p>
+        </div>
+        {sessions.length > 0 && (
+          <button
+            onClick={() => setShowExport(true)}
+            className="flex items-center gap-2 rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-secondary hover:bg-t-hover transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar
+          </button>
+        )}
       </div>
 
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-end gap-4">
         {isSuperadmin && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => { setTenantId(e.target.value); setPage(1) }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -102,37 +118,37 @@ export default function SessionsPage() {
           </div>
         )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">De</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => { setFrom(e.target.value); setPage(1) }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ate</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => { setTo(e.target.value); setPage(1) }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Telefone</label>
           <input
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setAppliedPhone(phone); setPage(1) } }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             placeholder="Digite so numeros (ex: 11999994321)"
           />
         </div>
         <button
           onClick={() => { setAppliedPhone(phone); setPage(1) }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="rounded-lg bg-edge-cyan px-4 py-2 text-sm font-semibold text-edge-dark hover:bg-edge-cyan/90 transition-colors"
         >
           Filtrar
         </button>
@@ -140,52 +156,42 @@ export default function SessionsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-hidden rounded-xl glass-card">
+        <table className="min-w-full divide-y divide-t-default">
+          <thead className="bg-t-thead">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Telefone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">MAC</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">IP</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tenant</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Autenticado em</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Expira em</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Telefone</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">MAC</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">IP</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Autenticado em</th>
+              <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Expira em</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-t-default">
             {loading ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="h-5 w-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Carregando...
-                  </div>
-                </td>
-              </tr>
+              <SkeletonTableRows columns={6} rows={8} />
             ) : sessions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-t-label">
                   Nenhuma sessao encontrada.
                 </td>
               </tr>
             ) : (
               sessions.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 font-mono">{s.phone_masked}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.mac_address}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.ip_address}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{s.tenant.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(s.auth_at)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(s.expires_at)}</td>
+                <tr key={s.id} className="hover:bg-t-hover-subtle transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-t-secondary font-mono">{s.phone_masked}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted font-mono">{s.mac_address}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted font-mono">{s.ip_address}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{s.tenant.name}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{formatDate(s.auth_at)}</td>
+                  <td className="px-6 py-4 text-sm text-t-muted">{formatDate(s.expires_at)}</td>
                 </tr>
               ))
             )}
@@ -196,26 +202,58 @@ export default function SessionsPage() {
       {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-t-label">
             Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={pagination.page <= 1}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
             >
               Anterior
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
               disabled={pagination.page >= pagination.pages}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-md border border-t-input px-3 py-1.5 text-xs text-t-muted hover:bg-t-hover disabled:opacity-50 transition-colors"
             >
               Proxima
             </button>
           </div>
         </div>
+      )}
+
+      {/* Export Modal */}
+      {showExport && (
+        <ExportModal
+          title="Relatório de Sessões Wi-Fi"
+          subtitle={from || to ? `Período: ${from || '...'} a ${to || '...'}` : undefined}
+          filenamePrefix="sessoes_wifi"
+          metrics={[
+            { label: 'Total de sessoes', value: String(pagination.total) },
+            { label: 'Página atual', value: `${sessions.length} registros` },
+            ...(from ? [{ label: 'Data inicio', value: from }] : []),
+            ...(to ? [{ label: 'Data fim', value: to }] : []),
+          ]}
+          columns={[
+            { key: 'phone_masked', label: 'Telefone', enabled: true },
+            { key: 'mac_address', label: 'MAC', enabled: true },
+            { key: 'ip_address', label: 'IP', enabled: true },
+            { key: 'tenant_name', label: 'Tenant', enabled: true },
+            { key: 'auth_at', label: 'Autenticado em', enabled: true },
+            { key: 'expires_at', label: 'Expira em', enabled: true },
+          ]}
+          data={sessions.map((s) => ({
+            phone_masked: s.phone_masked,
+            mac_address: s.mac_address,
+            ip_address: s.ip_address,
+            tenant_name: s.tenant.name,
+            auth_at: formatDate(s.auth_at),
+            expires_at: formatDate(s.expires_at),
+          }))}
+          onClose={() => setShowExport(false)}
+        />
       )}
     </div>
   )

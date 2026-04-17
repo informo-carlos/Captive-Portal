@@ -5,6 +5,10 @@ import type { ReportSummary, Tenant } from '@captive-portal/shared'
 import { getReportSummary, getTenants, ApiRequestError } from '../../../lib/api'
 import { useAuth } from '../../../lib/auth-context'
 import { SessionsChart } from '../../../components/sessions-chart'
+import { SuccessRateChart } from '../../../components/success-rate-chart'
+import { TenantDistributionChart } from '../../../components/tenant-distribution-chart'
+import { SkeletonCard, SkeletonChart, SkeletonTableRows } from '../../../components/skeleton'
+import { ExportModal } from '../../../components/export-modal'
 
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0]
@@ -27,6 +31,7 @@ export default function DashboardPage() {
   const [tenantId, setTenantId] = useState('')
   const [from, setFrom] = useState(startOfMonth)
   const [to, setTo] = useState(() => formatDate(new Date()))
+  const [showExport, setShowExport] = useState(false)
 
   const fetchTenants = useCallback(async () => {
     if (!isSuperadmin) return
@@ -69,57 +74,63 @@ export default function DashboardPage() {
 
   const cards = summary
     ? [
-        { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR'), color: 'blue' },
-        { label: 'Usuarios unicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), color: 'green' },
-        { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR'), color: 'purple' },
-        { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%`, color: 'amber' },
+        { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR'), icon: 'sessions' },
+        { label: 'Usuários únicos', value: summary.totals.unique_phones.toLocaleString('pt-BR'), icon: 'users' },
+        { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR'), icon: 'attempts' },
+        { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%`, icon: 'rate' },
       ]
     : []
-
-  const cardColors: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-  }
 
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Resumo geral de autenticacoes Wi-Fi.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-t-primary">System Overview</h1>
+          <p className="mt-1 text-sm text-t-label">
+            Telemetria e métricas de autenticação Wi-Fi.
+          </p>
+        </div>
+        {summary && (
+          <button
+            onClick={() => setShowExport(true)}
+            className="flex items-center gap-2 rounded-lg border border-t-input px-4 py-2 text-sm font-medium text-t-secondary hover:bg-t-hover transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar relatorio
+          </button>
+        )}
       </div>
 
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">De</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">De</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ate</label>
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Ate</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
           />
         </div>
         {isSuperadmin && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">Tenant</label>
             <select
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm text-t-primary focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
             >
               <option value="">Todos</option>
               {tenants.map((t) => (
@@ -132,19 +143,37 @@ export default function DashboardPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
       {/* Loading */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <svg className="h-6 w-6 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-        </div>
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2"><SkeletonChart /></div>
+            <SkeletonChart />
+          </div>
+          {isSuperadmin && (
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <SkeletonChart />
+              <div className="overflow-hidden rounded-xl glass-card">
+                <div className="px-6 py-4 border-b border-t-default">
+                  <div className="h-3 w-20 animate-pulse rounded bg-t-hover" />
+                </div>
+                <table className="min-w-full divide-y divide-t-default">
+                  <tbody><SkeletonTableRows columns={3} rows={3} /></tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       ) : summary ? (
         <>
           {/* Metric Cards */}
@@ -152,58 +181,137 @@ export default function DashboardPage() {
             {cards.map((card) => (
               <div
                 key={card.label}
-                className={`rounded-lg border p-5 ${cardColors[card.color]}`}
+                className="glass-card rounded-xl p-5"
               >
-                <p className="text-sm font-medium opacity-80">{card.label}</p>
-                <p className="mt-1 text-3xl font-bold">{card.value}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-t-label">{card.label}</p>
+                <p className="mt-2 text-3xl font-bold text-t-primary">{card.value}</p>
+                <div className="mt-3 h-px bg-gradient-to-r from-edge-cyan/30 to-transparent" />
               </div>
             ))}
           </div>
 
-          {/* Chart */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold text-gray-900 uppercase tracking-wider">
-              Sessoes por dia
-            </h2>
-            {summary.by_day.length > 0 ? (
-              <SessionsChart data={summary.by_day} />
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Nenhum dado para o periodo selecionado.
-              </p>
-            )}
+          {/* Charts Row — Sessions trend + Success Rate */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="glass-card rounded-xl p-6 lg:col-span-2">
+              <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
+                Sessões por dia
+              </h2>
+              {summary.by_day.length > 0 ? (
+                <SessionsChart data={summary.by_day} />
+              ) : (
+                <p className="py-8 text-center text-sm text-t-label">
+                  Nenhum dado para o periodo selecionado.
+                </p>
+              )}
+            </div>
+            <div className="glass-card rounded-xl p-6">
+              <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
+                Taxa de sucesso
+              </h2>
+              <SuccessRateChart
+                successRate={summary.totals.success_rate}
+                totalAttempts={summary.totals.auth_attempts}
+                totalSessions={summary.totals.sessions}
+              />
+            </div>
           </div>
 
-          {/* By Tenant Table (superadmin) */}
+          {/* Tenant Distribution Chart + Table (superadmin) */}
           {isSuperadmin && summary.by_tenant.length > 0 && (
-            <div className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                  Por tenant
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="glass-card rounded-xl p-6">
+                <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-t-muted">
+                  Sessões por tenant
                 </h2>
+                <TenantDistributionChart data={summary.by_tenant} />
               </div>
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tenant</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Sessoes</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Usuarios unicos</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {summary.by_tenant.map((t) => (
-                    <tr key={t.tenant_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{t.tenant_name}</td>
-                      <td className="px-6 py-3 text-right text-sm text-gray-500">{t.sessions.toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-3 text-right text-sm text-gray-500">{t.unique_phones.toLocaleString('pt-BR')}</td>
+              <div className="overflow-hidden rounded-xl glass-card">
+                <div className="px-6 py-4 border-b border-t-default">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">
+                    Detalhes por tenant
+                  </h2>
+                </div>
+                <table className="min-w-full divide-y divide-t-default">
+                  <thead className="bg-t-thead">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-t-label">Tenant</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Sessões</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-t-label">Usuários únicos</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-t-default">
+                    {summary.by_tenant.map((t) => (
+                      <tr key={t.tenant_id} className="hover:bg-t-hover-subtle transition-colors">
+                        <td className="px-6 py-3 text-sm font-medium text-t-secondary">{t.tenant_name}</td>
+                        <td className="px-6 py-3 text-right text-sm text-t-muted">{t.sessions.toLocaleString('pt-BR')}</td>
+                        <td className="px-6 py-3 text-right text-sm text-t-muted">{t.unique_phones.toLocaleString('pt-BR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
       ) : null}
+
+      {/* Export Modal */}
+      {showExport && summary && (
+        <ExportModal
+          title="Relatório System Overview"
+          subtitle={`Período: ${from || '...'} a ${to || '...'}`}
+          filenamePrefix="relatorio_overview"
+          metrics={[
+            { label: 'Total de sessoes', value: summary.totals.sessions.toLocaleString('pt-BR') },
+            { label: 'Usuários únicos', value: summary.totals.unique_phones.toLocaleString('pt-BR') },
+            { label: 'Tentativas', value: summary.totals.auth_attempts.toLocaleString('pt-BR') },
+            { label: 'Taxa de sucesso', value: `${summary.totals.success_rate.toFixed(1)}%` },
+          ]}
+          chartData={{
+            areaChart: summary.by_day.length > 0 ? {
+              labels: summary.by_day.map((d) => {
+                const [, m, day] = d.date.split('-')
+                return `${day}/${m}`
+              }),
+              series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
+            } : undefined,
+            donutChart: {
+              successRate: summary.totals.success_rate,
+              totalSessions: summary.totals.sessions,
+              totalFailures: Math.max(0, summary.totals.auth_attempts - summary.totals.sessions),
+            },
+            barChart: isSuperadmin && summary.by_tenant.length > 0 ? {
+              labels: summary.by_tenant.map((t) => t.tenant_name),
+              values: summary.by_tenant.map((t) => t.sessions),
+            } : undefined,
+          }}
+          columns={
+            isSuperadmin && summary.by_tenant.length > 0
+              ? [
+                  { key: 'tenant_name', label: 'Tenant', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
+                  { key: 'unique_phones', label: 'Usuários únicos', enabled: true },
+                ]
+              : [
+                  { key: 'date', label: 'Data', enabled: true },
+                  { key: 'sessions', label: 'Sessões', enabled: true },
+                ]
+          }
+          data={
+            isSuperadmin && summary.by_tenant.length > 0
+              ? summary.by_tenant.map((t) => ({
+                  tenant_name: t.tenant_name,
+                  sessions: t.sessions.toLocaleString('pt-BR'),
+                  unique_phones: t.unique_phones.toLocaleString('pt-BR'),
+                }))
+              : summary.by_day.map((d) => ({
+                  date: new Date(d.date).toLocaleDateString('pt-BR'),
+                  sessions: d.sessions.toLocaleString('pt-BR'),
+                }))
+          }
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   )
 }

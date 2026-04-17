@@ -37,19 +37,19 @@ export default function CountdownTimer({
   const progress = secondsLeft / initialSeconds
 
   const isLow = secondsLeft <= 60
-  const barColor = isLow ? 'bg-red-500' : 'bg-blue-500'
-  const textColor = isLow ? 'text-red-600' : 'text-gray-600'
+  const barColor = isLow ? 'bg-red-500' : 'bg-edge-cyan'
+  const textColor = isLow ? 'text-red-400' : 'text-slate-400'
 
   return (
     <div className="w-full">
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1.5 flex items-center justify-between">
         <span className={`text-sm font-medium ${textColor}`}>
           {secondsLeft > 0
-            ? `Código válido por ${minutes}:${seconds.toString().padStart(2, '0')}`
-            : 'Código expirado'}
+            ? `Codigo valido por ${minutes}:${seconds.toString().padStart(2, '0')}`
+            : 'Codigo expirado'}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className={`h-full rounded-full transition-all duration-1000 ease-linear ${barColor}`}
           style={{ width: `${progress * 100}%` }}

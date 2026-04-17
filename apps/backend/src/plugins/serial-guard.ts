@@ -11,8 +11,8 @@ export default fp(async function serialGuardPlugin(fastify: FastifyInstance) {
   const { allowedSerials, tenantId } = fastify.config
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply) => {
-    // Health check não exige serial — Docker/Nginx precisam acessar sem header
-    if (request.url === '/health') return
+    // Health check e branding não exigem serial
+    if (request.url === '/health' || request.url === '/branding') return
 
     // Precedência: header > query param (conforme spec)
     const serial =

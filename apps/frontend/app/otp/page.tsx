@@ -4,6 +4,7 @@ import { Suspense, useState, useCallback, useMemo, useRef, useEffect } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import OtpInput from '../../components/OtpInput'
 import CountdownTimer from '../../components/CountdownTimer'
+import { useBranding } from '../../components/BrandingProvider'
 import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
 import { deserializeLhmParams } from '../../lib/lhm-params'
 
@@ -18,6 +19,7 @@ export default function OtpPageWrapper() {
 function OtpPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { logoUrl, secondaryColor } = useBranding()
   const serial = searchParams.get('serial') || ''
   const phone = searchParams.get('phone') || ''
   const mac = searchParams.get('mac') || ''
@@ -44,7 +46,6 @@ function OtpPage() {
 
   const missingParams = !serial || !phone || !mac || !ip
 
-  // Sem serial, phone, mac ou ip o fluxo não funciona
   useEffect(() => {
     if (missingParams) router.replace('/error')
   }, [missingParams, router])
@@ -176,7 +177,8 @@ function OtpPage() {
         window.location.href = redirectTo
         return
       }
-      router.push(`/success?serial=${serial}`)
+      const expiresIn = result.expires_in
+      router.push(`/success?serial=${serial}&expires_in=${expiresIn}`)
     } catch (err) {
       if (err instanceof ApiRequestError) {
         switch (err.error) {
@@ -229,7 +231,6 @@ function OtpPage() {
   const otpFull = otpDigits.every((d) => d !== '')
   const inputDisabled = loading || expired || blocked
 
-  // Mascara o telefone: 11987654321 → (11) 9****-4321
   const phoneMasked = phone.length >= 10
     ? `(${phone.slice(0, 2)}) ${phone[2]}****-${phone.slice(-4)}`
     : phone
@@ -237,102 +238,95 @@ function OtpPage() {
   if (missingParams) return null
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
-        {/* Header */}
-        <div className="mb-6 flex flex-col items-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
-            <svg
-              className="h-7 w-7 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
+      {/* Background orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="animate-float absolute left-[5%] top-[20%] h-64 w-64 rounded-full bg-edge-cyan/8 blur-3xl" />
+        <div className="animate-float-reverse absolute right-[10%] bottom-[15%] h-80 w-80 rounded-full bg-edge-cyan/5 blur-3xl" />
+      </div>
+
+      <div className="animate-slide-up relative z-10 w-full max-w-sm">
+        <div className="absolute -inset-1 rounded-2xl bg-edge-cyan/5 blur-xl" />
+
+        <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
+          {/* Header */}
+          <div className="mb-6 flex flex-col items-center">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-14 w-auto max-w-[200px] object-contain" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-edge-cyan/10 border border-edge-cyan/20">
+                <svg className="h-7 w-7 text-edge-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+            )}
+            <h1 className="mt-3 text-xl font-bold text-white">Verificacao</h1>
+            <p className="mt-1 text-center text-sm text-slate-500">
+              Enviamos um codigo para{' '}
+              <span className="font-medium text-slate-300">{phoneMasked}</span>
+            </p>
           </div>
-          <h1 className="mt-3 text-xl font-bold text-gray-900">
-            Verificação
-          </h1>
-          <p className="mt-1 text-center text-sm text-gray-500">
-            Enviamos um código para{' '}
-            <span className="font-medium text-gray-700">{phoneMasked}</span>
-          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Timer */}
+            <CountdownTimer
+              key={timerKey}
+              initialSeconds={300}
+              onExpire={handleExpire}
+            />
+
+            {/* OTP Input */}
+            <OtpInput
+              value={otpDigits}
+              onChange={setOtpDigits}
+              disabled={inputDisabled}
+              shake={shake}
+            />
+
+            {/* Error */}
+            {error && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-center text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            {/* Main button */}
+            {!expired && !blocked ? (
+              <button
+                type="submit"
+                disabled={loading || !otpFull}
+                className="w-full rounded-xl bg-edge-cyan py-3 text-base font-bold transition-all hover:shadow-lg hover:shadow-edge-cyan/20 focus:outline-none focus:ring-2 focus:ring-edge-cyan/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ color: secondaryColor }}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Verificando...
+                  </span>
+                ) : (
+                  'Verificar'
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 text-base font-semibold text-white transition-all hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-edge-cyan/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {resending ? 'Reenviando...' : 'Reenviar codigo'}
+              </button>
+            )}
+          </form>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Timer */}
-          <CountdownTimer
-            key={timerKey}
-            initialSeconds={300}
-            onExpire={handleExpire}
-          />
-
-          {/* OTP Input */}
-          <OtpInput
-            value={otpDigits}
-            onChange={setOtpDigits}
-            disabled={inputDisabled}
-            shake={shake}
-          />
-
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-center text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {/* Botão principal */}
-          {!expired && !blocked ? (
-            <button
-              type="submit"
-              disabled={loading || !otpFull}
-              className="w-full rounded-lg bg-blue-600 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="h-5 w-5 animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                  Verificando...
-                </span>
-              ) : (
-                'Verificar'
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={resending}
-              className="w-full rounded-lg bg-gray-800 py-3 text-base font-semibold text-white transition-colors hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-            >
-              {resending ? 'Reenviando...' : 'Reenviar código'}
-            </button>
-          )}
-        </form>
       </div>
     </main>
   )

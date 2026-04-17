@@ -52,6 +52,19 @@ async function request<T>(
   return body as T
 }
 
+// ─── Branding ───────────────────────────────────────────
+
+export interface BrandingResponse {
+  logo_url: string | null
+  primary_color: string
+  secondary_color: string
+  welcome_text: string | null
+}
+
+export function fetchBranding(): Promise<BrandingResponse> {
+  return request<BrandingResponse>('/branding')
+}
+
 // ─── Portal endpoints ───────────────────────────────────
 
 export interface RequestOtpParams {

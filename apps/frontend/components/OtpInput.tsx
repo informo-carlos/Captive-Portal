@@ -103,11 +103,11 @@ export default function OtpInput({
           onPaste={index === 0 ? handlePaste : undefined}
           disabled={disabled}
           autoFocus={index === 0}
-          className={`h-14 w-11 rounded-lg border-2 text-center text-2xl font-bold text-gray-900 outline-none transition-all sm:h-16 sm:w-12 ${
+          className={`h-14 w-11 rounded-lg border-2 text-center text-2xl font-bold text-white bg-white/[0.04] outline-none transition-all sm:h-16 sm:w-12 ${
             value[index]
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 bg-white'
-          } focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
+              ? 'border-edge-cyan/60 bg-edge-cyan/5'
+              : 'border-white/[0.1]'
+          } focus:border-edge-cyan focus:ring-2 focus:ring-edge-cyan/20 disabled:border-white/[0.05] disabled:bg-white/[0.02] disabled:text-slate-600`}
           aria-label={`Dígito ${index + 1} do código`}
         />
       ))}
