@@ -580,6 +580,21 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         changes['serials'] = serials.map((s) => s.serial)
       }
 
+      // Campos que entram como env var no container do portal — mudá-los
+      // exige recriar o container, senão o valor novo fica no DB mas o
+      // container segue com o antigo (ex: ALLOWED_SERIALS desatualizado → o
+      // firewall novo volta 403 no serial-guard).
+      const needsReprovision =
+        body['serials'] !== undefined ||
+        body['sonicwall_config'] !== undefined ||
+        body['zenvia_token'] !== undefined ||
+        body['zenvia_sender'] !== undefined
+      if (needsReprovision) {
+        updates.push(`status = $${paramIdx++}`)
+        values.push('provisioning')
+        changes['status'] = 'provisioning'
+      }
+
       // updated_at — atualiza sempre que houve qualquer mudança (incluindo só serials)
       if (updates.length > 0 || body['serials'] !== undefined) {
         updates.push(`updated_at = CURRENT_TIMESTAMP`)
