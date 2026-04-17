@@ -301,6 +301,69 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
     return reply.send(responseBody)
   })
+
+  // ─────────────────────────────────────────
+  // POST /auth/lhm-client-report
+  // Debug-only: frontend reporta o resultado de cada POST no-cors que ele
+  // disparou pro SW. Como no-cors devolve response opaque, esse é o único
+  // jeito de saber se o request sequer saiu do browser.
+  // ─────────────────────────────────────────
+  fastify.post('/auth/lhm-client-report', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['sessId', 'candidates'],
+        properties: {
+          sessId: { type: 'string', maxLength: 128 },
+          phone: { type: 'string', maxLength: 32 },
+          userAgent: { type: 'string', maxLength: 512 },
+          candidates: {
+            type: 'array',
+            maxItems: 8,
+            items: {
+              type: 'object',
+              required: ['url'],
+              properties: {
+                url: { type: 'string', maxLength: 512 },
+                ok: { type: 'boolean' },
+                type: { type: 'string', maxLength: 32 },
+                status: { type: 'number' },
+                duration_ms: { type: 'number' },
+                error: { type: 'string', maxLength: 512 },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const body = request.body as {
+      sessId: string
+      phone?: string
+      userAgent?: string
+      candidates: Array<{
+        url: string
+        ok?: boolean
+        type?: string
+        status?: number
+        duration_ms?: number
+        error?: string
+      }>
+    }
+
+    request.log.info(
+      {
+        tenantId: request.tenantId,
+        sessId: body.sessId,
+        phone: body.phone,
+        userAgent: body.userAgent,
+        candidates: body.candidates,
+      },
+      'lhm_client_report',
+    )
+
+    return reply.code(204).send()
+  })
 }
 
 export default authRoutes

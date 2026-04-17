@@ -100,18 +100,77 @@ function OtpPage() {
       // JS não lê a resposta (no-cors = opaque), a gente confia no SW.
       if (result.lhm_submit) {
         const { urls, body, redirectTo } = result.lhm_submit
-        await Promise.allSettled(
-          urls.map((url) =>
-            fetch(url, {
-              method: 'POST',
-              mode: 'no-cors',
-              credentials: 'omit',
-              headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-              body,
-              keepalive: true,
-            }).catch(() => undefined),
-          ),
+
+        // Mede cada POST no-cors. Response é opaque (JS não lê), mas
+        // a gente consegue capturar: se o fetch() resolveu ou rejeitou,
+        // duration, tipo da response e status (sempre 0 em opaque).
+        const reports = await Promise.all(
+          urls.map(async (url) => {
+            const start =
+              typeof performance !== 'undefined' ? performance.now() : Date.now()
+            try {
+              const res = await fetch(url, {
+                method: 'POST',
+                mode: 'no-cors',
+                credentials: 'omit',
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body,
+                keepalive: true,
+              })
+              const end =
+                typeof performance !== 'undefined' ? performance.now() : Date.now()
+              return {
+                url,
+                ok: res.ok,
+                type: res.type,
+                status: res.status,
+                duration_ms: Math.round(end - start),
+              }
+            } catch (err) {
+              const end =
+                typeof performance !== 'undefined' ? performance.now() : Date.now()
+              return {
+                url,
+                ok: false,
+                duration_ms: Math.round(end - start),
+                error: err instanceof Error ? err.message : String(err),
+              }
+            }
+          }),
         )
+
+        // sessId extraído do body pra correlacionar no log do backend
+        let sessId = ''
+        try {
+          const parsed = JSON.parse(body) as { info?: { sessId?: string } }
+          sessId = parsed.info?.sessId ?? ''
+        } catch {
+          // body não é JSON — reporta vazio
+        }
+
+        try {
+          await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || ''}/auth/lhm-client-report`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Sonicwall-Serial': serial,
+              },
+              body: JSON.stringify({
+                sessId,
+                phone,
+                userAgent:
+                  typeof navigator !== 'undefined' ? navigator.userAgent : '',
+                candidates: reports,
+              }),
+              keepalive: true,
+            },
+          )
+        } catch {
+          // best-effort — não bloqueia o redirect
+        }
+
         // Pequeno delay pra o SW processar antes do redirect
         await new Promise((r) => setTimeout(r, 500))
         window.location.href = redirectTo
