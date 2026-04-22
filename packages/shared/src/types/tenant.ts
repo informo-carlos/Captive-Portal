@@ -27,6 +27,31 @@ export interface SonicwallConfig {
   guest_service_pass?: string
 }
 
+/** Modo de autenticação do tenant — define qual Strategy roda no verify-otp. */
+export type AuthMode = 'sonicwall' | 'radius'
+
+/**
+ * Config RADIUS por tenant. `shared_secret` é criptografado AES-256 antes de
+ * gravar — pra cliente nunca vira no response, usar `RadiusConfigPublic`.
+ * Spec: docs/spec-radius-auth.md §3.3
+ */
+export interface RadiusConfig {
+  /** Shared secret entre firewall e nosso container (server-to-server). */
+  shared_secret: string
+  /** Porta UDP do CoA no NAS — default 3799 (RFC 5176). */
+  coa_port?: number
+  /** Duração da sessão em segundos (vai como Session-Timeout no Access-Accept). */
+  session_timeout_sec?: number
+  /** Lista de IPs/CIDRs permitidos a enviar pacotes RADIUS — vazio = aceita de qualquer NAS. */
+  nas_ip_allowlist?: string[]
+}
+
+/** Versão de `RadiusConfig` devolvida pela API — sem o shared_secret. */
+export type RadiusConfigPublic = Omit<RadiusConfig, 'shared_secret'> & {
+  /** Se o shared_secret está configurado (pra UI mostrar "configurado/não configurado"). */
+  has_shared_secret: boolean
+}
+
 export type TenantStatus =
   | 'provisioning'
   | 'active'
@@ -39,8 +64,11 @@ export interface Tenant {
   name: string
   port: number
   status: TenantStatus
+  /** Strategy de auth ativa. Default 'sonicwall' pra tenants pré-RADIUS. */
+  auth_mode: AuthMode
   serials: TenantSerial[]
   sonicwall_config?: Omit<SonicwallConfig, 'password'>
+  radius_config?: RadiusConfigPublic
   zenvia_token?: string
   /** Sender Zenvia (NUNCA retorna o valor real após criação — apenas booleano) */
   has_zenvia_sender?: boolean
@@ -67,8 +95,13 @@ export interface TenantDetail extends Tenant {
 export interface CreateTenantRequest {
   name: string
   port: number
+  /** Default 'sonicwall' se omitido (preserva semântica pré-RADIUS). */
+  auth_mode?: AuthMode
   serials: { serial: string; role: 'primary' | 'secondary' }[]
-  sonicwall_config: SonicwallConfig
+  /** Obrigatório quando auth_mode='sonicwall' (ou omitido). */
+  sonicwall_config?: SonicwallConfig
+  /** Obrigatório quando auth_mode='radius'. */
+  radius_config?: RadiusConfig
   zenvia_token: string
   zenvia_sender: string
   session_duration_minutes?: number
@@ -77,8 +110,10 @@ export interface CreateTenantRequest {
 
 export interface UpdateTenantRequest {
   name?: string
+  auth_mode?: AuthMode
   serials?: { serial: string; role: 'primary' | 'secondary' }[]
   sonicwall_config?: Partial<SonicwallConfig>
+  radius_config?: Partial<RadiusConfig>
   zenvia_token?: string
   zenvia_sender?: string
   session_duration_minutes?: number
