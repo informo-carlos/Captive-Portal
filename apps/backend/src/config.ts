@@ -9,6 +9,7 @@ export interface PortalConfig {
   redisUrl: string
   zenviaToken: string
   zenviaSender: string
+  authMode: 'sonicwall' | 'radius'
   sonicwall: {
     host: string
     port: number
@@ -19,6 +20,14 @@ export interface PortalConfig {
     lhmPort: number
     guestServiceUser: string
     guestServicePass: string
+  }
+  radius: {
+    enabled: boolean
+    authPort: number
+    acctPort: number
+    coaPort: number
+    sharedSecret: string
+    sessionTimeoutSec: number
   }
   nodeEnv: string
 }
@@ -31,7 +40,22 @@ function requireEnv(name: string): string {
   return value
 }
 
+function parseIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (!raw) return fallback
+  const n = parseInt(raw, 10)
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${name} inválido: "${raw}" — esperado inteiro positivo`)
+  }
+  return n
+}
+
 export function loadConfig(): PortalConfig {
+  const authMode = (process.env['AUTH_MODE'] || 'sonicwall') as 'sonicwall' | 'radius'
+  if (authMode !== 'sonicwall' && authMode !== 'radius') {
+    throw new Error(`AUTH_MODE inválido: "${authMode}". Valores aceitos: sonicwall, radius`)
+  }
+
   const mode = (process.env['SONICWALL_MODE'] || 'rest') as 'rest' | 'lhm'
   const firmware = (process.env['SONICWALL_FIRMWARE'] || '7') as '6' | '7'
 
@@ -50,30 +74,51 @@ export function loadConfig(): PortalConfig {
     throw new Error('ALLOWED_SERIALS deve conter ao menos um serial')
   }
 
-  // LHM exige campos adicionais
-  if (mode === 'lhm') {
+  // LHM exige campos adicionais — só quando o tenant está em modo sonicwall/lhm.
+  if (authMode === 'sonicwall' && mode === 'lhm') {
     requireEnv('SONICWALL_GUEST_SERVICE_USER')
     requireEnv('SONICWALL_GUEST_SERVICE_PASS')
   }
 
+  // Em modo RADIUS o SonicWall vira opcional — tenant RADIUS-only não precisa
+  // dessas credenciais. Fornecemos fallbacks vazios pra manter o shape do config.
+  const swRequired = authMode === 'sonicwall'
+  const swHost = swRequired ? requireEnv('SONICWALL_HOST') : (process.env['SONICWALL_HOST'] || '')
+  const swUser = swRequired ? requireEnv('SONICWALL_USER') : (process.env['SONICWALL_USER'] || '')
+  const swPass = swRequired ? requireEnv('SONICWALL_PASS') : (process.env['SONICWALL_PASS'] || '')
+
+  const radiusEnabled = authMode === 'radius'
+  const radiusSharedSecret = radiusEnabled
+    ? requireEnv('RADIUS_SHARED_SECRET')
+    : (process.env['RADIUS_SHARED_SECRET'] || '')
+
   return {
-    port: parseInt(process.env['PORT'] || '3000', 10),
+    port: parseIntEnv('PORT', 3000),
     tenantId: requireEnv('TENANT_ID'),
     allowedSerials,
     databaseUrl: requireEnv('DATABASE_URL'),
     redisUrl: process.env['REDIS_URL'] || 'redis://localhost:6379',
     zenviaToken: process.env['ZENVIA_TOKEN'] || '',
     zenviaSender: process.env['ZENVIA_SENDER'] || '',
+    authMode,
     sonicwall: {
-      host: requireEnv('SONICWALL_HOST'),
-      port: parseInt(process.env['SONICWALL_PORT'] || '443', 10),
-      user: requireEnv('SONICWALL_USER'),
-      pass: requireEnv('SONICWALL_PASS'),
+      host: swHost,
+      port: parseIntEnv('SONICWALL_PORT', 443),
+      user: swUser,
+      pass: swPass,
       firmware,
       mode,
-      lhmPort: parseInt(process.env['SONICWALL_LHM_PORT'] || '4043', 10),
+      lhmPort: parseIntEnv('SONICWALL_LHM_PORT', 4043),
       guestServiceUser: process.env['SONICWALL_GUEST_SERVICE_USER'] || '',
       guestServicePass: process.env['SONICWALL_GUEST_SERVICE_PASS'] || '',
+    },
+    radius: {
+      enabled: radiusEnabled,
+      authPort: parseIntEnv('RADIUS_AUTH_PORT', 1812),
+      acctPort: parseIntEnv('RADIUS_ACCT_PORT', 1813),
+      coaPort: parseIntEnv('RADIUS_COA_PORT', 3799),
+      sharedSecret: radiusSharedSecret,
+      sessionTimeoutSec: parseIntEnv('RADIUS_SESSION_TIMEOUT_SEC', 14400),
     },
     nodeEnv: process.env['NODE_ENV'] || 'development',
   }

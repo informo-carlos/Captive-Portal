@@ -27,30 +27,29 @@ export interface SonicwallConfig {
   guest_service_pass?: string
 }
 
-/**
- * Modo de autenticação do tenant.
- * - `sonicwall` — usa SonicwallConfig (REST ou LHM), integração proprietária.
- * - `radius` — RADIUS + MAB com sessão efêmera no Redis (multi-vendor,
- *   ver docs/spec-radius-auth.md §1.1: sem cadastro prévio de usuário).
- */
+/** Modo de autenticação do tenant — define qual Strategy roda no verify-otp. */
 export type AuthMode = 'sonicwall' | 'radius'
 
 /**
- * Configuração RADIUS por tenant. Preenchido apenas quando auth_mode='radius'.
- * O `shared_secret` é criptografado em repouso (AES-256) — nunca retornado pela API.
+ * Config RADIUS por tenant. `shared_secret` é criptografado AES-256 antes de
+ * gravar — pra cliente nunca vira no response, usar `RadiusConfigPublic`.
+ * Spec: docs/spec-radius-auth.md §3.3
  */
 export interface RadiusConfig {
-  /** Segredo compartilhado firewall↔container. Server-to-server. Nunca chega ao guest. */
-  shared_secret?: string
-  /** Porta UDP que recebe CoA-Disconnect no NAS. Default 3799 (RFC 5176). */
+  /** Shared secret entre firewall e nosso container (server-to-server). */
+  shared_secret: string
+  /** Porta UDP do CoA no NAS — default 3799 (RFC 5176). */
   coa_port?: number
-  /** Tempo de sessão em segundos (300–86400). TTL da chave Redis de autorização. */
+  /** Duração da sessão em segundos (vai como Session-Timeout no Access-Accept). */
   session_timeout_sec?: number
-  /**
-   * Lista de IPs/CIDRs permitidos a falar RADIUS com este container.
-   * Vazio = aceita qualquer origem (não recomendado).
-   */
+  /** Lista de IPs/CIDRs permitidos a enviar pacotes RADIUS — vazio = aceita de qualquer NAS. */
   nas_ip_allowlist?: string[]
+}
+
+/** Versão de `RadiusConfig` devolvida pela API — sem o shared_secret. */
+export type RadiusConfigPublic = Omit<RadiusConfig, 'shared_secret'> & {
+  /** Se o shared_secret está configurado (pra UI mostrar "configurado/não configurado"). */
+  has_shared_secret: boolean
 }
 
 export type TenantStatus =
@@ -65,12 +64,11 @@ export interface Tenant {
   name: string
   port: number
   status: TenantStatus
+  /** Strategy de auth ativa. Default 'sonicwall' pra tenants pré-RADIUS. */
+  auth_mode: AuthMode
   serials: TenantSerial[]
-  /** Modo de autenticação. Default 'sonicwall' pra compatibilidade com tenants existentes. */
-  auth_mode?: AuthMode
   sonicwall_config?: Omit<SonicwallConfig, 'password'>
-  /** Config RADIUS sem o shared_secret — API nunca retorna o segredo. */
-  radius_config?: Omit<RadiusConfig, 'shared_secret'>
+  radius_config?: RadiusConfigPublic
   zenvia_token?: string
   /** Sender Zenvia (NUNCA retorna o valor real após criação — apenas booleano) */
   has_zenvia_sender?: boolean
@@ -97,10 +95,12 @@ export interface TenantDetail extends Tenant {
 export interface CreateTenantRequest {
   name: string
   port: number
-  serials: { serial: string; role: 'primary' | 'secondary' }[]
-  /** Default 'sonicwall' se omitido. Em 'radius' o sonicwall_config pode ser omitido. */
+  /** Default 'sonicwall' se omitido (preserva semântica pré-RADIUS). */
   auth_mode?: AuthMode
+  serials: { serial: string; role: 'primary' | 'secondary' }[]
+  /** Obrigatório quando auth_mode='sonicwall' (ou omitido). */
   sonicwall_config?: SonicwallConfig
+  /** Obrigatório quando auth_mode='radius'. */
   radius_config?: RadiusConfig
   zenvia_token: string
   zenvia_sender: string
@@ -110,8 +110,8 @@ export interface CreateTenantRequest {
 
 export interface UpdateTenantRequest {
   name?: string
-  serials?: { serial: string; role: 'primary' | 'secondary' }[]
   auth_mode?: AuthMode
+  serials?: { serial: string; role: 'primary' | 'secondary' }[]
   sonicwall_config?: Partial<SonicwallConfig>
   radius_config?: Partial<RadiusConfig>
   zenvia_token?: string
