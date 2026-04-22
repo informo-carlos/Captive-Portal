@@ -22,6 +22,51 @@ o navegador do usuário retorna `Failed to fetch` ao tentar falar com o SonicWal
 
 ---
 
+## 1.1 Princípio: zero contas pré-criadas (MAB)
+
+**Este modo RADIUS NÃO tem cadastro prévio de usuário.** Nenhum formulário de cadastro, nenhuma tabela `radius_users`, nenhum import LDAP. O fluxo é **MAC Authentication Bypass (MAB)** com sessão efêmera no Redis — o guest existe pelo tempo que ele estiver conectado, e some quando a sessão expira.
+
+### Como funciona na prática
+
+1. Celular associa ao SSID → firewall dispara `Access-Request` com `User-Name = <MAC do cliente>`
+2. Nosso listener consulta Redis: `GET radius:authorized:<tenant>:<mac>`
+   - Não existe → `Access-Reject` (firewall mantém guest no walled-garden, só alcança o portal)
+3. Guest abre browser → redirect pro portal → informa telefone → valida OTP
+4. `verify-otp` grava `SETEX radius:authorized:<tenant>:<mac> <session_timeout_sec>` no Redis + dispara CoA-Disconnect
+5. Firewall re-dispara `Access-Request` pro mesmo MAC → agora Redis tem a chave → `Access-Accept`
+6. Sessão expira → chave some do Redis → próximo MAB falha → guest precisa re-OTP
+
+### "Identidade" do guest = MAC + telefone (descoberto on-the-fly)
+
+A gente nunca cria uma conta permanente. O que fica no banco é o **log** do que aconteceu — `wifi_sessions` (OTP), `radius_sessions` (accounting), ligados por `(tenant_id, mac)`. Relatório fica: _"telefone +55 11 9XXXX-4321 autenticou às 14:30, consumiu 230MB, saiu 18:30 (session-timeout)"_ — sem conta permanente por trás.
+
+### Shared secret do RADIUS ≠ senha de usuário
+
+Dois segredos distintos, fácil confundir:
+
+| Segredo | Entre quem | Troca quando | O guest vê? |
+|---------|-----------|--------------|-------------|
+| **Shared secret RADIUS** | Firewall do cliente ↔ container do tenant | Raramente — é server-to-server, igual API key. Admin cola ele no firewall durante o setup. | Nunca |
+| **Código OTP** | Guest ↔ portal | A cada login — expira em 5 minutos. | Sim, chega por SMS |
+
+O shared secret é a única "credencial estática" do sistema, e ela autentica o **firewall**, não o guest.
+
+### Divisão de responsabilidade
+
+| Responsabilidade | Onde mora |
+|------------------|-----------|
+| Quem é o usuário (autenticação via OTP) | 🏠 Portal |
+| MAC está autorizado agora? (MAB via Redis) | 🏠 Portal |
+| Auditoria (log, bytes, duração) | 🏠 Portal (Accounting RFC 2866) |
+| Expirar sessão remotamente | 🏠 Portal dispara CoA → 🔥 firewall executa |
+| Filtro de conteúdo (CFS) | 🔥 Firewall |
+| QoS / bandwidth | 🔥 Firewall |
+| VLAN / roteamento | 🔥 Firewall |
+
+O portal pode **rotular** a sessão via atributos RADIUS (`Filter-Id`, `Tunnel-Private-Group-ID`) pra que o firewall aplique policies diferentes por classe — mas a policy em si (quais sites bloquear, qual banda) mora no firewall, como sempre foi.
+
+---
+
 ## 2. Por que RADIUS resolve
 
 | Ganho | Detalhe |
