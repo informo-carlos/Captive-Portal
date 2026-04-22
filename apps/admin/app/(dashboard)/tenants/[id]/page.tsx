@@ -296,35 +296,91 @@ export default function TenantDetailPage() {
             </div>
           </div>
 
-          {/* SonicWall Config */}
-          <div className="glass-card rounded-xl">
-            <div className="border-b border-t-default px-6 py-4">
-              <h2 className="text-sm font-semibold text-t-secondary">Configuração SonicWall</h2>
+          {/* Config por modo — SonicWall ou RADIUS */}
+          {tenant.auth_mode !== 'radius' && (
+            <div className="glass-card rounded-xl">
+              <div className="border-b border-t-default px-6 py-4">
+                <h2 className="text-sm font-semibold text-t-secondary">Configuração SonicWall</h2>
+              </div>
+              <div className="px-6 py-4 space-y-3">
+                {tenant.sonicwall_config ? (
+                  <>
+                    <InfoRow label="Modo" value={tenant.sonicwall_config.mode === 'lhm' ? 'LHM (External Guest Auth)' : 'REST API'} />
+                    {tenant.sonicwall_config.mode === 'rest' && (
+                      <>
+                        <InfoRow label="Host" value={tenant.sonicwall_config.host || '-'} mono />
+                        <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
+                        <InfoRow label="Usuário" value={tenant.sonicwall_config.user || '-'} />
+                        <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
+                      </>
+                    )}
+                    {tenant.sonicwall_config.mode === 'lhm' && (
+                      <>
+                        <InfoRow label="Porta LHM" value={String(tenant.sonicwall_config.lhm_port || 4043)} mono />
+                        <InfoRow label="Guest user" value={tenant.sonicwall_config.guest_service_user || '(não configurado)'} />
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-t-label">Nenhuma configuracao disponível.</p>
+                )}
+              </div>
             </div>
-            <div className="px-6 py-4 space-y-3">
-              {tenant.sonicwall_config ? (
-                <>
-                  <InfoRow label="Modo" value={tenant.sonicwall_config.mode === 'lhm' ? 'LHM (External Guest Auth)' : 'REST API'} />
-                  {tenant.sonicwall_config.mode === 'rest' && (
-                    <>
-                      <InfoRow label="Host" value={tenant.sonicwall_config.host || '-'} mono />
-                      <InfoRow label="Porta" value={String(tenant.sonicwall_config.port || 443)} mono />
-                      <InfoRow label="Usuário" value={tenant.sonicwall_config.user || '-'} />
-                      <InfoRow label="Firmware" value={`Gen ${tenant.sonicwall_config.firmware || '?'}`} />
-                    </>
-                  )}
-                  {tenant.sonicwall_config.mode === 'lhm' && (
-                    <>
-                      <InfoRow label="Porta LHM" value={String(tenant.sonicwall_config.lhm_port || 4043)} mono />
-                      <InfoRow label="Guest user" value={tenant.sonicwall_config.guest_service_user || '(não configurado)'} />
-                    </>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-t-label">Nenhuma configuracao disponível.</p>
-              )}
+          )}
+
+          {tenant.auth_mode === 'radius' && (
+            <div className="glass-card rounded-xl">
+              <div className="border-b border-t-default px-6 py-4 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-t-secondary">Configuração RADIUS</h2>
+                <span className="rounded-full bg-edge-cyan/10 px-2 py-0.5 text-[10px] font-medium text-edge-cyan border border-edge-cyan/20">
+                  MAB + CoA
+                </span>
+              </div>
+              <div className="px-6 py-4 space-y-3">
+                <InfoRow
+                  label="Shared secret"
+                  value={tenant.radius_config?.has_shared_secret ? '••••••••  (criptografado)' : '(não configurado)'}
+                />
+                <InfoRow
+                  label="Porta CoA (NAS)"
+                  value={String(tenant.radius_config?.coa_port ?? 3799)}
+                  mono
+                />
+                <InfoRow
+                  label="Duração da sessão"
+                  value={
+                    tenant.radius_config?.session_timeout_sec
+                      ? `${tenant.radius_config.session_timeout_sec}s  (~${(tenant.radius_config.session_timeout_sec / 3600).toFixed(1)}h)`
+                      : '14400s (~4h)'
+                  }
+                  mono
+                />
+                <InfoRow
+                  label="NAS permitidos"
+                  value={
+                    tenant.radius_config?.nas_ip_allowlist && tenant.radius_config.nas_ip_allowlist.length > 0
+                      ? tenant.radius_config.nas_ip_allowlist.join(', ')
+                      : '(qualquer origem — não recomendado)'
+                  }
+                  mono
+                />
+                <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-400/90">
+                    Porta UDP do container
+                  </p>
+                  <p className="mt-1 text-xs text-t-label leading-relaxed">
+                    Configure o firewall pra mandar RADIUS Auth/Accounting pra{' '}
+                    <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[11px]">
+                      VPS:&lt;porta-alocada&gt;
+                    </code>
+                    . A porta UDP é alocada pelo provisioner no range{' '}
+                    <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[11px]">18120-18219</code>{' '}
+                    e será exibida aqui quando o tenant terminar de provisionar (status=&apos;active&apos;).
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Serials */}
