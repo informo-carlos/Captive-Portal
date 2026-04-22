@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { Tenant, CreateTenantRequest, UpdateTenantRequest } from '@captive-portal/shared'
+import type { AuthMode, Tenant, CreateTenantRequest, UpdateTenantRequest } from '@captive-portal/shared'
 import { createTenant, updateTenant } from '../lib/api'
 import { ApiRequestError } from '../lib/api'
 import { useNotifications } from '../lib/notification-context'
@@ -17,6 +17,7 @@ interface FormData {
   port: string
   serial_primary: string
   serial_secondary: string
+  auth_mode: AuthMode
   sw_host: string
   sw_port: string
   sw_user: string
@@ -40,6 +41,7 @@ const EMPTY_FORM: FormData = {
   port: '',
   serial_primary: '',
   serial_secondary: '',
+  auth_mode: 'sonicwall',
   sw_host: '',
   sw_port: '',
   sw_user: '',
@@ -75,6 +77,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         port: String(tenant.port),
         serial_primary: primary?.serial || '',
         serial_secondary: secondary?.serial || '',
+        auth_mode: tenant.auth_mode || 'sonicwall',
         sw_host: tenant.sonicwall_config?.host || '',
         sw_port: tenant.sonicwall_config?.port ? String(tenant.sonicwall_config.port) : '',
         sw_user: tenant.sonicwall_config?.user || '',
@@ -108,7 +111,7 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     }
     if (!form.serial_primary.trim()) return 'Serial primário é obrigatório.'
 
-    if (form.sw_mode === 'rest') {
+    if (form.auth_mode === 'sonicwall' && form.sw_mode === 'rest') {
       if (form.sw_port.trim()) {
         const p = parseInt(form.sw_port)
         if (isNaN(p) || p < 1 || p > 65535) return 'Porta de management deve estar entre 1 e 65535.'
@@ -118,6 +121,10 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         if (!form.sw_user.trim()) return 'Usuário SonicWall é obrigatório no modo REST.'
         if (!form.sw_password.trim()) return 'Senha SonicWall é obrigatória no modo REST.'
       }
+    }
+
+    if (form.auth_mode === 'radius') {
+      return 'Modo RADIUS ainda sem formulário — aguardando task F10.'
     }
 
     if (!isEditing) {
@@ -282,6 +289,58 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             </div>
           )}
 
+          {/* Tipo de autenticação — seletor em cards */}
+          <div className="space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Tipo de autenticação</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {(
+                [
+                  {
+                    key: 'sonicwall' as const,
+                    title: 'SonicWall',
+                    desc: 'REST API ou LHM (External Guest Auth). Integração proprietária — exige firewall SonicWall.',
+                  },
+                  {
+                    key: 'radius' as const,
+                    title: 'RADIUS',
+                    desc: 'MAB + OTP + CoA (multi-vendor). Sem cadastro prévio — sessão efêmera no Redis. Funciona com Mikrotik, Unifi, pfSense etc.',
+                  },
+                ]
+              ).map((opt) => {
+                const selected = form.auth_mode === opt.key
+                const disabled = isEditing && form.auth_mode !== opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setForm((prev) => ({ ...prev, auth_mode: opt.key }))}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      selected
+                        ? 'border-edge-cyan/60 bg-edge-cyan/5'
+                        : 'border-t-input bg-t-input hover:bg-t-hover'
+                    } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-t-primary">{opt.title}</span>
+                      {selected && (
+                        <span className="rounded-full bg-edge-cyan/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-edge-cyan">
+                          selecionado
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-t-label">{opt.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+            {isEditing && (
+              <p className="text-[10px] text-t-placeholder">
+                O modo não pode ser alterado após a criação — requer recriar o tenant.
+              </p>
+            )}
+          </div>
+
           {/* Basic Info */}
           <div className="space-y-4">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Informações básicas</h3>
@@ -368,7 +427,8 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
             </div>
           </div>
 
-          {/* SonicWall Config */}
+          {/* SonicWall Config — só aparece em modo sonicwall */}
+          {form.auth_mode === 'sonicwall' && (
           <div className="space-y-4">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Configuração SonicWall</h3>
 
@@ -506,6 +566,23 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
               </div>
             )}
           </div>
+          )}
+
+          {/* Placeholder RADIUS — formulário completo virá na task F10 */}
+          {form.auth_mode === 'radius' && (
+            <div className="rounded-lg border border-edge-cyan/20 bg-edge-cyan/5 p-4">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-edge-cyan">Configuração RADIUS</h3>
+              <p className="mt-2 text-xs text-t-label leading-relaxed">
+                Os campos RADIUS (<code className="rounded bg-t-input px-1 py-0.5 text-[10px]">shared_secret</code>,{' '}
+                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">coa_port</code>,{' '}
+                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">session_timeout</code>,{' '}
+                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">nas_ip_allowlist</code>) serão implementados na <strong>task F10</strong>. Por enquanto só o seletor de modo está funcional.
+              </p>
+              <p className="mt-2 text-[10px] text-t-placeholder">
+                Veja <code>docs/spec-radius-auth.md</code> §3.3 pra detalhes do contrato.
+              </p>
+            </div>
+          )}
 
           {/* Zenvia */}
           <div className="space-y-4">
