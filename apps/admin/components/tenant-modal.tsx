@@ -335,7 +335,34 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
 
           {/* Tipo de autenticação — seletor em cards */}
           <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Tipo de autenticação</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-t-muted">Tipo de autenticação</h3>
+              <div className="relative group">
+                <button
+                  type="button"
+                  tabIndex={0}
+                  aria-label="Qual modo escolher?"
+                  className="flex h-4 w-4 items-center justify-center rounded-full border border-t-input text-[10px] font-semibold text-t-label hover:bg-t-hover focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+                >
+                  ?
+                </button>
+                <div className="pointer-events-none invisible absolute left-0 top-6 z-10 w-80 rounded-lg border border-t-default bg-t-card p-3 text-[11px] leading-relaxed text-t-secondary opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                  <p className="mb-2 font-semibold text-t-primary">Qual modo escolher?</p>
+                  <p className="mb-1.5">
+                    <strong className="text-edge-cyan">SonicWall</strong> — use quando o cliente tem
+                    firewall SonicWall homologado e a VPS consegue alcançar a API REST de management,
+                    <em> ou</em> o navegador do guest alcança o gateway (LHM). Integração proprietária,
+                    mais simples de debugar, mas quebra em redes com NAT estrito.
+                  </p>
+                  <p>
+                    <strong className="text-edge-cyan">RADIUS</strong> — use em qualquer outro firewall
+                    (Mikrotik, Unifi, pfSense, Cisco, Aruba, Meraki) ou em SonicWalls que não cabem no
+                    modo acima. Protocolo padrão multi-vendor, funciona atrás de NAT e já vem com
+                    Accounting (bytes trafegados por sessão) e CoA (desconexão remota).
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {(
                 [

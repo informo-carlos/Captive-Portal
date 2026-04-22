@@ -9,6 +9,7 @@ import { ApiRequestError } from '../../../../lib/api'
 import { useAuth } from '../../../../lib/auth-context'
 import { useNotifications } from '../../../../lib/notification-context'
 import { TenantModal } from '../../../../components/tenant-modal'
+import { TenantFirewallHelp } from '../../../../components/tenant-firewall-help'
 
 export default function TenantDetailPage() {
   const params = useParams()
@@ -380,6 +381,12 @@ export default function TenantDetailPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {tenant.auth_mode === 'radius' && (
+            <TenantFirewallHelp
+              coaPort={tenant.radius_config?.coa_port}
+            />
           )}
         </div>
 
