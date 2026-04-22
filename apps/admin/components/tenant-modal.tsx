@@ -1,10 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { AuthMode, Tenant, CreateTenantRequest, UpdateTenantRequest } from '@captive-portal/shared'
+import type { AuthMode, Tenant, CreateTenantRequest, UpdateTenantRequest, RadiusConfig } from '@captive-portal/shared'
 import { createTenant, updateTenant } from '../lib/api'
 import { ApiRequestError } from '../lib/api'
 import { useNotifications } from '../lib/notification-context'
+import {
+  TenantModalRadius,
+  EMPTY_RADIUS_FORM,
+  validateRadiusForm,
+  type RadiusFormData,
+} from './tenant-modal-radius'
 
 interface TenantModalProps {
   tenant: Tenant | null
@@ -64,14 +70,23 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
   const isEditing = !!tenant
   const { add: notify } = useNotifications()
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
+  const [radiusForm, setRadiusForm] = useState<RadiusFormData>(EMPTY_RADIUS_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null)
+
+  const hasExistingRadiusSecret = !!tenant?.radius_config?.has_shared_secret
 
   useEffect(() => {
     if (tenant) {
       const primary = tenant.serials.find((s) => s.role === 'primary')
       const secondary = tenant.serials.find((s) => s.role === 'secondary')
+      setRadiusForm({
+        shared_secret: '',
+        coa_port: String(tenant.radius_config?.coa_port ?? 3799),
+        session_timeout_sec: String(tenant.radius_config?.session_timeout_sec ?? 14400),
+        nas_ip_allowlist: tenant.radius_config?.nas_ip_allowlist ?? [],
+      })
       setForm({
         name: tenant.name,
         port: String(tenant.port),
@@ -124,7 +139,11 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     }
 
     if (form.auth_mode === 'radius') {
-      return 'Modo RADIUS ainda sem formulário — aguardando task F10.'
+      const radiusErr = validateRadiusForm(radiusForm, {
+        isEditing,
+        hasExistingSecret: hasExistingRadiusSecret,
+      })
+      if (radiusErr) return radiusErr
     }
 
     if (!isEditing) {
@@ -158,17 +177,29 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           serials: buildSerials(),
           session_duration_minutes: parseInt(form.session_duration_minutes),
         }
-        data.sonicwall_config = { mode: form.sw_mode }
-        if (form.sw_mode === 'rest') {
-          if (form.sw_host.trim()) data.sonicwall_config.host = form.sw_host.trim()
-          if (form.sw_port.trim()) data.sonicwall_config.port = parseInt(form.sw_port)
-          if (form.sw_user.trim()) data.sonicwall_config.user = form.sw_user.trim()
-          if (form.sw_password.trim()) data.sonicwall_config.password = form.sw_password.trim()
-          data.sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
+        if (form.auth_mode === 'radius') {
+          const patch: Partial<RadiusConfig> = {
+            coa_port: parseInt(radiusForm.coa_port) || 3799,
+            session_timeout_sec: parseInt(radiusForm.session_timeout_sec) || 14400,
+            nas_ip_allowlist: radiusForm.nas_ip_allowlist,
+          }
+          if (radiusForm.shared_secret.trim()) {
+            patch.shared_secret = radiusForm.shared_secret.trim()
+          }
+          data.radius_config = patch
         } else {
-          if (form.sw_lhm_port.trim()) data.sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
-          if (form.sw_guest_user.trim()) data.sonicwall_config.guest_service_user = form.sw_guest_user.trim()
-          if (form.sw_guest_pass.trim()) data.sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
+          data.sonicwall_config = { mode: form.sw_mode }
+          if (form.sw_mode === 'rest') {
+            if (form.sw_host.trim()) data.sonicwall_config.host = form.sw_host.trim()
+            if (form.sw_port.trim()) data.sonicwall_config.port = parseInt(form.sw_port)
+            if (form.sw_user.trim()) data.sonicwall_config.user = form.sw_user.trim()
+            if (form.sw_password.trim()) data.sonicwall_config.password = form.sw_password.trim()
+            data.sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
+          } else {
+            if (form.sw_lhm_port.trim()) data.sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
+            if (form.sw_guest_user.trim()) data.sonicwall_config.guest_service_user = form.sw_guest_user.trim()
+            if (form.sw_guest_pass.trim()) data.sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
+          }
         }
         if (form.zenvia_token.trim()) data.zenvia_token = form.zenvia_token.trim()
         if (form.zenvia_sender.trim()) data.zenvia_sender = form.zenvia_sender.trim()
@@ -189,26 +220,11 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           detail: form.name.trim(),
         })
       } else {
-        const sonicwall_config: CreateTenantRequest['sonicwall_config'] = {
-          mode: form.sw_mode,
-        }
-        if (form.sw_mode === 'rest') {
-          sonicwall_config.host = form.sw_host.trim()
-          if (form.sw_port.trim()) sonicwall_config.port = parseInt(form.sw_port)
-          sonicwall_config.user = form.sw_user.trim()
-          sonicwall_config.password = form.sw_password.trim()
-          sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
-        } else {
-          if (form.sw_lhm_port.trim()) sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
-          if (form.sw_guest_user.trim()) sonicwall_config.guest_service_user = form.sw_guest_user.trim()
-          if (form.sw_guest_pass.trim()) sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
-        }
-
         const data: CreateTenantRequest = {
           name: form.name.trim(),
           port: parseInt(form.port),
+          auth_mode: form.auth_mode,
           serials: buildSerials(),
-          sonicwall_config,
           zenvia_token: form.zenvia_token.trim(),
           zenvia_sender: form.zenvia_sender.trim(),
           session_duration_minutes: parseInt(form.session_duration_minutes),
@@ -220,13 +236,41 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           },
         }
 
+        if (form.auth_mode === 'radius') {
+          data.radius_config = {
+            shared_secret: radiusForm.shared_secret.trim(),
+            coa_port: parseInt(radiusForm.coa_port) || 3799,
+            session_timeout_sec: parseInt(radiusForm.session_timeout_sec) || 14400,
+            nas_ip_allowlist: radiusForm.nas_ip_allowlist,
+          }
+        } else {
+          const sonicwall_config: CreateTenantRequest['sonicwall_config'] = {
+            mode: form.sw_mode,
+          }
+          if (form.sw_mode === 'rest') {
+            sonicwall_config.host = form.sw_host.trim()
+            if (form.sw_port.trim()) sonicwall_config.port = parseInt(form.sw_port)
+            sonicwall_config.user = form.sw_user.trim()
+            sonicwall_config.password = form.sw_password.trim()
+            sonicwall_config.firmware = parseInt(form.sw_firmware) || 7
+          } else {
+            if (form.sw_lhm_port.trim()) sonicwall_config.lhm_port = parseInt(form.sw_lhm_port) || 4043
+            if (form.sw_guest_user.trim()) sonicwall_config.guest_service_user = form.sw_guest_user.trim()
+            if (form.sw_guest_pass.trim()) sonicwall_config.guest_service_pass = form.sw_guest_pass.trim()
+          }
+          data.sonicwall_config = sonicwall_config
+        }
+
         await createTenant(data)
         notify({
           type: 'tenant',
           action: 'tenant_created',
           status: 'completed',
           message: 'Novo tenant criado',
-          detail: `${form.name.trim()} — porta ${form.port}`,
+          detail:
+            form.auth_mode === 'radius'
+              ? `${form.name.trim()} (RADIUS) — porta HTTP ${form.port}. Porta UDP RADIUS será exibida nos detalhes após provisioning.`
+              : `${form.name.trim()} — porta ${form.port}`,
         })
       }
 
@@ -568,20 +612,15 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           </div>
           )}
 
-          {/* Placeholder RADIUS — formulário completo virá na task F10 */}
+          {/* Formulário RADIUS */}
           {form.auth_mode === 'radius' && (
-            <div className="rounded-lg border border-edge-cyan/20 bg-edge-cyan/5 p-4">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-edge-cyan">Configuração RADIUS</h3>
-              <p className="mt-2 text-xs text-t-label leading-relaxed">
-                Os campos RADIUS (<code className="rounded bg-t-input px-1 py-0.5 text-[10px]">shared_secret</code>,{' '}
-                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">coa_port</code>,{' '}
-                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">session_timeout</code>,{' '}
-                <code className="rounded bg-t-input px-1 py-0.5 text-[10px]">nas_ip_allowlist</code>) serão implementados na <strong>task F10</strong>. Por enquanto só o seletor de modo está funcional.
-              </p>
-              <p className="mt-2 text-[10px] text-t-placeholder">
-                Veja <code>docs/spec-radius-auth.md</code> §3.3 pra detalhes do contrato.
-              </p>
-            </div>
+            <TenantModalRadius
+              form={radiusForm}
+              onChange={(patch) => setRadiusForm((prev) => ({ ...prev, ...patch }))}
+              isEditing={isEditing}
+              hasExistingSecret={hasExistingRadiusSecret}
+              inputClass={inputClass}
+            />
           )}
 
           {/* Zenvia */}
