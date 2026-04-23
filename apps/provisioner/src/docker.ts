@@ -45,7 +45,11 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
   await removeExistingContainer(name)
 
   const sw = tenant.sonicwall_config
+  const rad = tenant.radius_config
+  const isRadius = tenant.auth_mode === 'radius'
 
+  // Env comum (inclui defaults vazios pra SonicWall em tenants RADIUS-only,
+  // que o config.ts do portal aceita quando AUTH_MODE=radius).
   const env: string[] = [
     `PORT=3000`,
     `TENANT_ID=${tenant.id}`,
@@ -54,12 +58,14 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
     `REDIS_URL=${process.env['REDIS_URL'] ?? ''}`,
     `ZENVIA_TOKEN=${tenant.zenvia_token}`,
     `ZENVIA_SENDER=${tenant.zenvia_sender}`,
-    `SONICWALL_HOST=${sw.host}`,
+    `AUTH_MODE=${tenant.auth_mode}`,
+    // SonicWall — obrigatório quando auth_mode=sonicwall, opcional caso contrário
+    `SONICWALL_HOST=${sw.host ?? ''}`,
     `SONICWALL_PORT=${sw.port ?? 443}`,
-    `SONICWALL_USER=${sw.user}`,
-    `SONICWALL_PASS=${sw.password}`,
+    `SONICWALL_USER=${sw.user ?? ''}`,
+    `SONICWALL_PASS=${sw.password ?? ''}`,
     `SONICWALL_FIRMWARE=${sw.firmware ?? 7}`,
-    `SONICWALL_MODE=${sw.mode}`,
+    `SONICWALL_MODE=${sw.mode ?? 'rest'}`,
     `SONICWALL_LHM_PORT=${sw.lhm_port ?? 4043}`,
     `SONICWALL_GUEST_SERVICE_USER=${sw.guest_service_user ?? ''}`,
     `SONICWALL_GUEST_SERVICE_PASS=${sw.guest_service_pass ?? ''}`,
@@ -68,20 +74,56 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
     `NODE_ENV=production`,
   ]
 
+  // RADIUS env vars — o listener sobe interno nas 1812/1813, o provisioner
+  // cuida do port mapping externo via HostConfig.PortBindings (abaixo).
+  if (isRadius) {
+    env.push(
+      `RADIUS_AUTH_PORT=1812`,
+      `RADIUS_ACCT_PORT=1813`,
+      `RADIUS_COA_PORT=${rad?.coa_port ?? 3799}`,
+      `RADIUS_SHARED_SECRET=${rad?.shared_secret ?? ''}`,
+      `RADIUS_SESSION_TIMEOUT_SEC=${rad?.session_timeout_sec ?? 14400}`,
+    )
+  }
+
+  // ExposedPorts + port bindings
+  const exposedPorts: Record<string, Record<string, never>> = { '3000/tcp': {} }
+  const portBindings: Record<string, { HostPort: string }[]> = {}
+
+  if (isRadius) {
+    if (tenant.radius_auth_port === null || tenant.radius_acct_port === null) {
+      throw new Error(
+        'Tenant RADIUS sem par de portas UDP alocadas — admin-backend deveria ter atribuído no INSERT',
+      )
+    }
+    exposedPorts['1812/udp'] = {}
+    exposedPorts['1813/udp'] = {}
+    portBindings['1812/udp'] = [{ HostPort: String(tenant.radius_auth_port) }]
+    portBindings['1813/udp'] = [{ HostPort: String(tenant.radius_acct_port) }]
+  }
+
+  const labels: Record<string, string> = {
+    'captive.tenant': 'true',
+    'captive.tenant_id': tenant.id,
+    'captive.tenant_name': tenant.name,
+    'captive.port': String(tenant.port),
+    'captive.auth_mode': tenant.auth_mode,
+  }
+  if (isRadius && tenant.radius_auth_port !== null && tenant.radius_acct_port !== null) {
+    labels['captive.radius_auth_port'] = String(tenant.radius_auth_port)
+    labels['captive.radius_acct_port'] = String(tenant.radius_acct_port)
+  }
+
   const container = await docker.createContainer({
     name,
     Image: config.portalImage,
     Env: env,
-    ExposedPorts: { '3000/tcp': {} },
-    Labels: {
-      'captive.tenant': 'true',
-      'captive.tenant_id': tenant.id,
-      'captive.tenant_name': tenant.name,
-      'captive.port': String(tenant.port),
-    },
+    ExposedPorts: exposedPorts,
+    Labels: labels,
     HostConfig: {
       RestartPolicy: { Name: 'unless-stopped' },
       NetworkMode: config.internalNetwork,
+      ...(isRadius ? { PortBindings: portBindings } : {}),
     },
   })
 

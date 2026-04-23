@@ -69,6 +69,10 @@ export interface Tenant {
   serials: TenantSerial[]
   sonicwall_config?: Omit<SonicwallConfig, 'password'>
   radius_config?: RadiusConfigPublic
+  /** Porta UDP alocada pelo provisioner pro Access-Request (range 18120-18219). Null pra tenants não-RADIUS. */
+  radius_auth_port?: number | null
+  /** Porta UDP alocada pelo provisioner pro Accounting (range 18120-18219). Null pra tenants não-RADIUS. */
+  radius_acct_port?: number | null
   zenvia_token?: string
   /** Sender Zenvia (NUNCA retorna o valor real após criação — apenas booleano) */
   has_zenvia_sender?: boolean

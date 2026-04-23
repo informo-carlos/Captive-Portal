@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { PoolClient } from 'pg'
 import { encrypt, decrypt } from '../services/crypto'
 
 interface TenantSerial {
@@ -16,6 +17,67 @@ interface SonicwallConfig {
   lhm_port?: number
   guest_service_user?: string
   guest_service_pass?: string
+}
+
+type AuthMode = 'sonicwall' | 'radius'
+
+interface RadiusConfig {
+  shared_secret?: string
+  coa_port?: number
+  session_timeout_sec?: number
+  nas_ip_allowlist?: string[]
+}
+
+/** Range de portas UDP pra RADIUS. Espelha o HTTP 29000-29099 (B9 spec §3.4). */
+const RADIUS_PORT_MIN = 18120
+const RADIUS_PORT_MAX = 18219
+
+/**
+ * Aloca par (auth, acct) de portas UDP livres dentro da transação.
+ * Estratégia: varrer o range sequencialmente, pulando qualquer porta já
+ * reservada por outro tenant. Usa o client da transação pra garantir
+ * consistência com o INSERT que vem a seguir (mesmo que dois POSTs
+ * concorrentes rodem, cada um vê o snapshot seu e o UNIQUE constraint
+ * do banco é o tie-breaker final).
+ */
+async function allocateRadiusPortPair(
+  client: PoolClient,
+): Promise<{ authPort: number; acctPort: number }> {
+  const usedResult = await client.query<{ radius_auth_port: number | null; radius_acct_port: number | null }>(
+    `SELECT radius_auth_port, radius_acct_port FROM tenants
+      WHERE (radius_auth_port IS NOT NULL OR radius_acct_port IS NOT NULL)
+        AND deleted_at IS NULL`,
+  )
+  const used = new Set<number>()
+  for (const row of usedResult.rows) {
+    if (row.radius_auth_port !== null) used.add(row.radius_auth_port)
+    if (row.radius_acct_port !== null) used.add(row.radius_acct_port)
+  }
+
+  // Procura o primeiro par (auth, acct=auth+1) livre.
+  for (let auth = RADIUS_PORT_MIN; auth < RADIUS_PORT_MAX; auth += 2) {
+    const acct = auth + 1
+    if (!used.has(auth) && !used.has(acct)) {
+      return { authPort: auth, acctPort: acct }
+    }
+  }
+  throw new Error(
+    `Range de portas RADIUS (${RADIUS_PORT_MIN}-${RADIUS_PORT_MAX}) esgotado`,
+  )
+}
+
+/**
+ * Valida que os campos RADIUS necessários estão presentes na criação.
+ * shared_secret é o único obrigatório — demais têm defaults no listener.
+ */
+function validateRadiusCreate(config: RadiusConfig | undefined): string | null {
+  if (!config || !config.shared_secret) {
+    return 'shared_secret é obrigatório quando auth_mode = "radius".'
+  }
+  if (config.coa_port !== undefined && (config.coa_port < 1 || config.coa_port > 65535)) {
+    return 'coa_port fora do range 1-65535.'
+  }
+  return null
 }
 
 /**
@@ -83,6 +145,37 @@ function sanitizeConfigFromDb(row: Record<string, unknown>, encryptionKey: strin
   return safe
 }
 
+/**
+ * Extrai o radius_config do DB (criptografado no mesmo formato que
+ * sonicwall_config: { encrypted: "iv:ciphertext" }) e retorna a versão
+ * pública — sem o shared_secret, com `has_shared_secret: bool` pra a UI.
+ */
+function sanitizeRadiusConfigFromDb(
+  row: Record<string, unknown>,
+  encryptionKey: string,
+): Record<string, unknown> {
+  const raw = row['radius_config'] as Record<string, unknown> | null
+  if (!raw) return { has_shared_secret: false }
+
+  let decrypted: RadiusConfig = {}
+  if (raw['encrypted'] && typeof raw['encrypted'] === 'string') {
+    try {
+      decrypted = JSON.parse(decrypt(raw['encrypted'] as string, encryptionKey)) as RadiusConfig
+    } catch {
+      return { has_shared_secret: false }
+    }
+  } else if (typeof raw === 'object') {
+    // Formato não criptografado (ex: tenant legado) — assume que já é o objeto
+    decrypted = raw as RadiusConfig
+  }
+
+  const { shared_secret, ...safe } = decrypted
+  return {
+    ...safe,
+    has_shared_secret: !!shared_secret,
+  }
+}
+
 const tenantRoutes: FastifyPluginAsync = async (fastify) => {
   const encryptionKey = fastify.config.encryptionKey
 
@@ -147,8 +240,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       name: row['name'],
       port: row['port'],
       status: row['status'],
+      auth_mode: row['auth_mode'] ?? 'sonicwall',
       serials: row['serials'],
       sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
+      radius_config: sanitizeRadiusConfigFromDb(row, encryptionKey),
+      radius_auth_port: row['radius_auth_port'] ?? null,
+      radius_acct_port: row['radius_acct_port'] ?? null,
       // Não retornamos o sender em si — apenas se está configurado.
       // Mesmo padrão do password: nunca sai do backend depois de gravado.
       has_zenvia_sender: !!row['zenvia_sender'],
@@ -178,10 +275,11 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     schema: {
       body: {
         type: 'object',
-        required: ['name', 'port', 'serials', 'sonicwall_config', 'zenvia_token', 'zenvia_sender'],
+        required: ['name', 'port', 'serials', 'zenvia_token', 'zenvia_sender'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 255 },
           port: { type: 'integer', minimum: 29000, maximum: 29999 },
+          auth_mode: { type: 'string', enum: ['sonicwall', 'radius'], default: 'sonicwall' },
           serials: {
             type: 'array',
             minItems: 1,
@@ -200,6 +298,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
             // Apenas `mode` é universalmente obrigatório. Os demais campos são
             // exigidos conforme o modo, e a validação acontece no handler em
             // validateModeRequirements (ver acima).
+            // Schema opcional pra permitir tenants radius-only (sem sonicwall).
             required: ['mode'],
             properties: {
               mode: { type: 'string', enum: ['rest', 'lhm'] },
@@ -211,6 +310,20 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
               lhm_port: { type: 'integer' },
               guest_service_user: { type: 'string' },
               guest_service_pass: { type: 'string' },
+            },
+          },
+          radius_config: {
+            type: 'object',
+            // shared_secret é obrigatório em validateRadiusCreate quando auth_mode=radius.
+            properties: {
+              shared_secret: { type: 'string', minLength: 8, maxLength: 256 },
+              coa_port: { type: 'integer', minimum: 1, maximum: 65535, default: 3799 },
+              session_timeout_sec: { type: 'integer', minimum: 300, maximum: 86400 },
+              nas_ip_allowlist: {
+                type: 'array',
+                items: { type: 'string', maxLength: 64 },
+                maxItems: 32,
+              },
             },
           },
           zenvia_token: { type: 'string', minLength: 1 },
@@ -232,22 +345,45 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     const body = request.body as {
       name: string
       port: number
+      auth_mode?: AuthMode
       serials: TenantSerial[]
-      sonicwall_config: SonicwallConfig
+      sonicwall_config?: SonicwallConfig
+      radius_config?: RadiusConfig
       zenvia_token: string
       zenvia_sender: string
       session_duration_minutes?: number
       branding?: { logo_url?: string; primary_color?: string; secondary_color?: string; welcome_text?: string }
     }
 
-    // Valida campos obrigatórios conforme o modo (rest exige host/user/pass).
-    const modeError = validateModeRequirements(body.sonicwall_config)
-    if (modeError) {
-      return reply.code(422).send({
-        error: 'missing_mode_fields',
-        message: modeError,
-        code: 422,
-      })
+    const authMode: AuthMode = body.auth_mode ?? 'sonicwall'
+
+    // Validação específica por modo
+    if (authMode === 'sonicwall') {
+      if (!body.sonicwall_config) {
+        return reply.code(422).send({
+          error: 'missing_sonicwall_config',
+          message: 'sonicwall_config é obrigatório quando auth_mode = "sonicwall".',
+          code: 422,
+        })
+      }
+      const modeError = validateModeRequirements(body.sonicwall_config)
+      if (modeError) {
+        return reply.code(422).send({
+          error: 'missing_mode_fields',
+          message: modeError,
+          code: 422,
+        })
+      }
+    } else {
+      // radius
+      const radiusError = validateRadiusCreate(body.radius_config)
+      if (radiusError) {
+        return reply.code(422).send({
+          error: 'missing_radius_fields',
+          message: radiusError,
+          code: 422,
+        })
+      }
     }
 
     const client = await fastify.db.connect()
@@ -287,22 +423,48 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // 3. Criptografa campos sensíveis
-      const encryptedConfig = encrypt(JSON.stringify(body.sonicwall_config), encryptionKey)
+      // sonicwall_config sempre existe no DB (default '{}'), mas só tem
+      // conteúdo real pra tenants sonicwall. Radius-only salva o objeto vazio
+      // pra não quebrar schema existente.
+      const swConfigToEncrypt = body.sonicwall_config ?? {}
+      const encryptedConfig = encrypt(JSON.stringify(swConfigToEncrypt), encryptionKey)
       const encryptedZenvia = encrypt(body.zenvia_token, encryptionKey)
       const encryptedSender = encrypt(body.zenvia_sender, encryptionKey)
+
+      // 3a. Só pra tenants RADIUS: criptografa radius_config e aloca UDP
+      let encryptedRadiusPayload: string | null = null
+      let radiusAuthPort: number | null = null
+      let radiusAcctPort: number | null = null
+      if (authMode === 'radius' && body.radius_config) {
+        encryptedRadiusPayload = encrypt(JSON.stringify(body.radius_config), encryptionKey)
+        const ports = await allocateRadiusPortPair(client)
+        radiusAuthPort = ports.authPort
+        radiusAcctPort = ports.acctPort
+      }
 
       // 4. Insere tenant — começa em status='provisioning'.
       // O worker (apps/provisioner) vai pegar o registro, criar o container
       // Docker e o bloco nginx, e mover pra 'active'. Em caso de falha, vai
       // pra 'failed' com a mensagem em provisioning_error.
       const insertResult = await client.query(
-        `INSERT INTO tenants (name, port, status, sonicwall_config, zenvia_token, zenvia_sender, session_duration_minutes, branding)
-         VALUES ($1, $2, 'provisioning', $3, $4, $5, $6, $7)
-         RETURNING id, name, port, status, session_duration_minutes, branding, created_at`,
+        `INSERT INTO tenants
+           (name, port, status, auth_mode,
+            sonicwall_config, radius_config, radius_auth_port, radius_acct_port,
+            zenvia_token, zenvia_sender, session_duration_minutes, branding)
+         VALUES ($1, $2, 'provisioning', $3,
+                 $4, $5, $6, $7,
+                 $8, $9, $10, $11)
+         RETURNING id, name, port, status, auth_mode,
+                   radius_auth_port, radius_acct_port,
+                   session_duration_minutes, branding, created_at`,
         [
           body.name,
           body.port,
+          authMode,
           JSON.stringify({ encrypted: encryptedConfig }),
+          encryptedRadiusPayload ? JSON.stringify({ encrypted: encryptedRadiusPayload }) : '{}',
+          radiusAuthPort,
+          radiusAcctPort,
           encryptedZenvia,
           encryptedSender,
           body.session_duration_minutes ?? 480,
@@ -337,6 +499,9 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         name: tenant.name,
         port: tenant.port,
         status: tenant.status,
+        auth_mode: tenant.auth_mode,
+        radius_auth_port: tenant.radius_auth_port,
+        radius_acct_port: tenant.radius_acct_port,
         serials: serialRows,
         session_duration_minutes: tenant.session_duration_minutes,
         branding: tenant.branding || {},
@@ -393,8 +558,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       name: row.name,
       port: row.port,
       status: row.status,
+      auth_mode: row.auth_mode ?? 'sonicwall',
       serials: row.serials,
       sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
+      radius_config: sanitizeRadiusConfigFromDb(row, encryptionKey),
+      radius_auth_port: row.radius_auth_port ?? null,
+      radius_acct_port: row.radius_acct_port ?? null,
       has_zenvia_sender: !!row.zenvia_sender,
       provisioning_error: row.provisioning_error ?? null,
       container_id: row.container_id ?? null,
@@ -444,6 +613,19 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
               lhm_port: { type: 'integer' },
               guest_service_user: { type: 'string' },
               guest_service_pass: { type: 'string' },
+            },
+          },
+          radius_config: {
+            type: 'object',
+            properties: {
+              shared_secret: { type: 'string', minLength: 8, maxLength: 256 },
+              coa_port: { type: 'integer', minimum: 1, maximum: 65535 },
+              session_timeout_sec: { type: 'integer', minimum: 300, maximum: 86400 },
+              nas_ip_allowlist: {
+                type: 'array',
+                items: { type: 'string', maxLength: 64 },
+                maxItems: 32,
+              },
             },
           },
           zenvia_token: { type: 'string' },
@@ -526,6 +708,46 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         changes['sonicwall_config'] = 'updated'
       }
 
+      // radius_config — merge com o existente + re-encriptar.
+      // auth_mode NÃO é editável via PUT (mudar modo requer recriar container
+      // + dealocar portas UDP, fluxo dedicado no futuro).
+      if (body['radius_config'] !== undefined) {
+        const existingRow = existing.rows[0]
+        const existingRaw = (existingRow['radius_config'] as Record<string, unknown> | null) ?? null
+        let currentRadius: RadiusConfig = {}
+        if (existingRaw && existingRaw['encrypted'] && typeof existingRaw['encrypted'] === 'string') {
+          try {
+            currentRadius = JSON.parse(decrypt(existingRaw['encrypted'] as string, encryptionKey)) as RadiusConfig
+          } catch {
+            currentRadius = {}
+          }
+        }
+        const merged: RadiusConfig = {
+          ...currentRadius,
+          ...(body['radius_config'] as RadiusConfig),
+        }
+
+        // Se o tenant é RADIUS, shared_secret deve continuar presente.
+        if (existingRow['auth_mode'] === 'radius' && !merged.shared_secret) {
+          await client.query('ROLLBACK')
+          return reply.code(422).send({
+            error: 'missing_radius_fields',
+            message: 'shared_secret não pode ser removido de um tenant RADIUS.',
+            code: 422,
+          })
+        }
+
+        const encryptedRadius = encrypt(JSON.stringify(merged), encryptionKey)
+        updates.push(`radius_config = $${paramIdx++}`)
+        values.push(JSON.stringify({ encrypted: encryptedRadius }))
+        // Não logamos o shared_secret; só indicamos que houve mudança.
+        const { shared_secret, ...safeDiff } = body['radius_config'] as RadiusConfig
+        changes['radius_config'] = {
+          ...safeDiff,
+          shared_secret: shared_secret ? 'updated' : undefined,
+        }
+      }
+
       // zenvia_token
       if (body['zenvia_token'] !== undefined) {
         const encryptedZenvia = encrypt(body['zenvia_token'] as string, encryptionKey)
@@ -587,6 +809,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       const needsReprovision =
         body['serials'] !== undefined ||
         body['sonicwall_config'] !== undefined ||
+        body['radius_config'] !== undefined ||
         body['zenvia_token'] !== undefined ||
         body['zenvia_sender'] !== undefined
       if (needsReprovision) {
@@ -633,8 +856,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         name: row.name,
         port: row.port,
         status: row.status,
+        auth_mode: row.auth_mode ?? 'sonicwall',
         serials: row.serials,
         sonicwall_config: sanitizeConfigFromDb(row, encryptionKey),
+        radius_config: sanitizeRadiusConfigFromDb(row, encryptionKey),
+        radius_auth_port: row.radius_auth_port ?? null,
+        radius_acct_port: row.radius_acct_port ?? null,
         session_duration_minutes: row.session_duration_minutes,
         branding: row.branding || {},
         created_at: row.created_at,
