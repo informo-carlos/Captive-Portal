@@ -14,7 +14,7 @@ import type { Redis } from 'ioredis'
 // `radius` não tem @types — declaração mínima suficiente pro uso aqui.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const radius = require('radius')
-import { lookupMabAuthorization, normalizeMac } from './mab'
+import { lookupMabAuthorization, normalizeMac, rememberNasForMac } from './mab'
 import type { RadiusServiceConfig } from './index'
 
 interface RadiusPacket {
@@ -184,6 +184,19 @@ async function handleAccessRequest(ctx: HandlerContext): Promise<void> {
     sendReject(socket, rinfo, packet, config.sharedSecret, 'invalid-mac', logger)
     return
   }
+
+  // Tracking do NAS-IP por MAC — verify-otp usa isso depois pra saber pra
+  // onde disparar CoA. Falha silenciosa (errar aqui não pode dropar o
+  // fluxo de Accept/Reject em andamento). TTL curto (15min), chave
+  // sobrescrita a cada novo Access-Request.
+  rememberNasForMac(redis, tenantId, normalizedMac, rinfo.address).catch(
+    (err) => {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'radius_remember_nas_failed',
+      )
+    },
+  )
 
   // MAB lookup — chave no Redis gravada pelo verify-otp (B12).
   const mab = await lookupMabAuthorization(redis, tenantId, normalizedMac)

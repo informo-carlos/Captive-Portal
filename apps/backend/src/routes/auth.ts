@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
 import {
   normalizePhone,
@@ -13,6 +14,7 @@ import {
 } from '../services/otp'
 import { sendOtpSms } from '../services/zenvia'
 import { releaseAccess } from '../services/sonicwall'
+import { releaseAccessRadius } from '../services/radius/release'
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // ─────────────────────────────────────────
@@ -220,58 +222,140 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     )
     const sessionMinutes = tenantResult.rows[0]?.session_duration_minutes ?? 480
 
-    // 7. Chama SonicWall para liberar acesso.
-    // Em modo LHM, lhmParams (capturados no request-otp) são essenciais —
-    // sem eles a função retorna erro descritivo.
-    const swResult = await releaseAccess(
-      {
-        mac: stored.mac,
-        ip: stored.ip,
-        phone: phoneE164,
-        sessionMinutes,
-        lhmParams: stored.lhmParams,
-      },
-      fastify.config.sonicwall,
-      request.log,
-    )
-
-    if (!swResult.success) {
-      request.log.error({ raw: swResult.raw, mode: swResult.mode }, 'sonicwall_release_failed')
-      return reply.code(502).send({
-        error: 'sonicwall_failed',
-        message: 'Autenticação válida, mas falha ao liberar acesso. Contate o suporte.',
-        code: 502,
-      })
-    }
-
-    // 8. Calcula year_month e expires_at
+    // 7. Prepara campos comuns das duas Strategies
     const now = new Date()
-    // Usa UTC para consistência com TIMESTAMPTZ do Postgres (armazena em UTC)
     const yearMonth = parseInt(
       `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
       10,
     )
     const expiresAt = new Date(now.getTime() + sessionMinutes * 60 * 1000)
+    const sessionId = randomUUID()
 
-    // 9. Registra em wifi_sessions
-    await fastify.db.query(
-      `INSERT INTO wifi_sessions
-         (tenant_id, phone_e164, mac_address, ip_address, auth_at, expires_at, sonicwall_raw, sonicwall_mode, year_month)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        request.tenantId,
-        phoneE164,
-        stored.mac,
-        stored.ip,
-        now.toISOString(),
-        expiresAt.toISOString(),
-        JSON.stringify(swResult.raw),
-        swResult.mode,
-        yearMonth,
-      ],
-    )
+    // 8. Strategy branch — RADIUS ou SonicWall (REST/LHM).
+    //    RADIUS grava wifi_sessions ANTES do CoA (se o CoA falhar, a sessão
+    //    ainda fica registrada; NAS re-MAB por timer interno eventualmente).
+    //    SonicWall mantém ordem legacy: release → INSERT.
+    let responseBody: {
+      message: string
+      expires_in: number
+      redirect_url?: string
+      release_status?: 'active' | 'degraded'
+    }
 
-    // 10. Registra sucesso em auth_attempts
+    if (fastify.config.authMode === 'radius') {
+      // 8a.1 — INSERT wifi_sessions primeiro, marcado 'active' otimisticamente
+      await fastify.db.query(
+        `INSERT INTO wifi_sessions
+           (id, tenant_id, phone_e164, mac_address, ip_address, auth_at, expires_at,
+            sonicwall_mode, release_status, year_month)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'radius', 'active', $8)`,
+        [
+          sessionId,
+          request.tenantId,
+          phoneE164,
+          stored.mac,
+          stored.ip,
+          now.toISOString(),
+          expiresAt.toISOString(),
+          yearMonth,
+        ],
+      )
+
+      // 8a.2 — Strategy RADIUS: SET no Redis + CoA retry 3x
+      const result = await releaseAccessRadius(
+        {
+          mac: stored.mac,
+          ip: stored.ip,
+          phone: phoneE164,
+          sessionMinutes,
+        },
+        {
+          redis: fastify.redis,
+          config: fastify.config.radius,
+          tenantId: request.tenantId,
+          sessionId,
+        },
+        request.log,
+      )
+
+      // 8a.3 — Se CoA falhou 3x, marca degraded no DB (usuário navega mesmo
+      // assim — firewall faz re-MAB sozinho por timer próprio em alguns min)
+      if (result.releaseStatus === 'degraded') {
+        await fastify.db.query(
+          `UPDATE wifi_sessions
+              SET release_status = 'degraded',
+                  sonicwall_raw = $1
+            WHERE id = $2 AND year_month = $3`,
+          [JSON.stringify(result.raw), sessionId, yearMonth],
+        )
+      } else {
+        await fastify.db.query(
+          `UPDATE wifi_sessions SET sonicwall_raw = $1
+            WHERE id = $2 AND year_month = $3`,
+          [JSON.stringify(result.raw), sessionId, yearMonth],
+        )
+      }
+
+      responseBody = {
+        message:
+          result.releaseStatus === 'active'
+            ? 'Acesso liberado. Você já pode navegar.'
+            : 'Acesso registrado. A liberação pode levar até 1 minuto.',
+        expires_in: sessionMinutes * 60,
+        release_status: result.releaseStatus,
+      }
+    } else {
+      // 8b — Strategy SonicWall (REST/LHM, caminho legacy).
+      const swResult = await releaseAccess(
+        {
+          mac: stored.mac,
+          ip: stored.ip,
+          phone: phoneE164,
+          sessionMinutes,
+          lhmParams: stored.lhmParams,
+        },
+        fastify.config.sonicwall,
+        request.log,
+      )
+
+      if (!swResult.success) {
+        request.log.error({ raw: swResult.raw, mode: swResult.mode }, 'sonicwall_release_failed')
+        return reply.code(502).send({
+          error: 'sonicwall_failed',
+          message: 'Autenticação válida, mas falha ao liberar acesso. Contate o suporte.',
+          code: 502,
+        })
+      }
+
+      await fastify.db.query(
+        `INSERT INTO wifi_sessions
+           (id, tenant_id, phone_e164, mac_address, ip_address, auth_at, expires_at,
+            sonicwall_raw, sonicwall_mode, year_month)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          sessionId,
+          request.tenantId,
+          phoneE164,
+          stored.mac,
+          stored.ip,
+          now.toISOString(),
+          expiresAt.toISOString(),
+          JSON.stringify(swResult.raw),
+          swResult.mode,
+          yearMonth,
+        ],
+      )
+
+      responseBody = {
+        message: 'Acesso liberado. Você já pode navegar.',
+        expires_in: sessionMinutes * 60,
+      }
+      if (swResult.redirectUrl) {
+        responseBody.redirect_url = swResult.redirectUrl
+      }
+    }
+
+    // 9. auth_attempts + log de sucesso (comum às 2 strategies)
     await fastify.db.query(
       `INSERT INTO auth_attempts (tenant_id, phone_e164, mac_address, ip_address, status)
        VALUES ($1, $2, $3, $4, 'success')`,
@@ -279,24 +363,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     )
 
     request.log.info(
-      { tenantId: request.tenantId, phone: phoneE164, mode: swResult.mode },
+      {
+        tenantId: request.tenantId,
+        phone: phoneE164,
+        authMode: fastify.config.authMode,
+        releaseStatus: responseBody.release_status ?? 'active',
+      },
       'otp_verified_access_released',
     )
 
-    const expiresInSeconds = sessionMinutes * 60
-    const responseBody: {
-      message: string
-      expires_in: number
-      redirect_url?: string
-    } = {
-      message: 'Acesso liberado. Você já pode navegar.',
-      expires_in: expiresInSeconds,
-    }
-    // Só inclui redirect_url quando o backend de fato montou uma (modo LHM).
-    // Em modo REST/stub o campo é omitido pra não vazar `undefined` no JSON.
-    if (swResult.redirectUrl) {
-      responseBody.redirect_url = swResult.redirectUrl
-    }
     return reply.send(responseBody)
   })
 }
