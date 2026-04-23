@@ -753,6 +753,82 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.code(200).send({ message: 'Tenant removido com sucesso.' })
   })
+
+  // ─── GET /admin/tenants/:id/radius-status ─────────────────────
+  // Handoff pro F11 (Carlos): badge online/offline + contagem de sessões
+  // ativas por tenant RADIUS. Heurística de "online": status='active' e
+  // chegou accounting recente (<5min). Spec: docs/spec-radius-auth.md §9.
+  fastify.get('/admin/tenants/:id/radius-status', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const tenantResult = await fastify.db.query(
+      `SELECT id, auth_mode, status FROM tenants
+        WHERE id = $1 AND deleted_at IS NULL`,
+      [id],
+    )
+    if (tenantResult.rows.length === 0) {
+      return reply.code(404).send({
+        error: 'not_found',
+        message: 'Tenant não encontrado.',
+        code: 404,
+      })
+    }
+    const tenant = tenantResult.rows[0]
+
+    // Tenant não-RADIUS não tem listener UDP — retorna enabled=false.
+    if (tenant.auth_mode !== 'radius') {
+      return reply.code(200).send({
+        enabled: false,
+        online: false,
+        active_sessions: 0,
+        last_accounting_at: null,
+      })
+    }
+
+    // Agrega estado do accounting — última sessão vista + ativas.
+    const statsResult = await fastify.db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE stopped_at IS NULL)::int AS active_sessions,
+         MAX(started_at) AS last_accounting_at
+       FROM radius_sessions WHERE tenant_id = $1`,
+      [id],
+    )
+    const stats = statsResult.rows[0]
+    // pg costuma parsear TIMESTAMPTZ como Date, mas se alguém ajustar um
+    // type parser custom viraria string — normalizamos defensivamente pra
+    // evitar `.getTime is not a function` em runtime.
+    const rawLastAccounting = stats.last_accounting_at
+    const lastAccounting: Date | null =
+      rawLastAccounting == null
+        ? null
+        : rawLastAccounting instanceof Date
+          ? rawLastAccounting
+          : new Date(rawLastAccounting)
+
+    // "online" exige 2 condições:
+    //   - tenant ativo (container up — provisioner garante)
+    //   - accounting visto há menos de 5min (NAS tá falando com a gente)
+    // Se nunca rolou accounting (tenant novo), aceitamos active-no-traffic
+    // como "online" — operador vê badge verde assim que configura, não
+    // precisa esperar o primeiro guest.
+    const FIVE_MIN_MS = 5 * 60 * 1000
+    const hasRecentAccounting =
+      lastAccounting !== null &&
+      !Number.isNaN(lastAccounting.getTime()) &&
+      Date.now() - lastAccounting.getTime() < FIVE_MIN_MS
+    const neverSeenAccounting = lastAccounting === null
+    const online =
+      tenant.status === 'active' && (hasRecentAccounting || neverSeenAccounting)
+
+    return reply.code(200).send({
+      enabled: true,
+      online,
+      active_sessions: stats.active_sessions,
+      last_accounting_at: lastAccounting ? lastAccounting.toISOString() : null,
+    })
+  })
 }
 
 export default tenantRoutes
