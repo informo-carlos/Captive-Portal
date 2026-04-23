@@ -796,9 +796,18 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       [id],
     )
     const stats = statsResult.rows[0]
-    const lastAccounting: Date | null = stats.last_accounting_at
+    // pg costuma parsear TIMESTAMPTZ como Date, mas se alguém ajustar um
+    // type parser custom viraria string — normalizamos defensivamente pra
+    // evitar `.getTime is not a function` em runtime.
+    const rawLastAccounting = stats.last_accounting_at
+    const lastAccounting: Date | null =
+      rawLastAccounting == null
+        ? null
+        : rawLastAccounting instanceof Date
+          ? rawLastAccounting
+          : new Date(rawLastAccounting)
 
-    // "online" exige 3 condições:
+    // "online" exige 2 condições:
     //   - tenant ativo (container up — provisioner garante)
     //   - accounting visto há menos de 5min (NAS tá falando com a gente)
     // Se nunca rolou accounting (tenant novo), aceitamos active-no-traffic
@@ -807,6 +816,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     const FIVE_MIN_MS = 5 * 60 * 1000
     const hasRecentAccounting =
       lastAccounting !== null &&
+      !Number.isNaN(lastAccounting.getTime()) &&
       Date.now() - lastAccounting.getTime() < FIVE_MIN_MS
     const neverSeenAccounting = lastAccounting === null
     const online =
