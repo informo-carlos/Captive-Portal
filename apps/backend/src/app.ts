@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import { loadConfig, type PortalConfig } from './config'
 import postgresPlugin from './plugins/postgres'
 import redisPlugin from './plugins/redis'
+import radiusStartPlugin from './plugins/radius-start'
 import serialGuardPlugin from './plugins/serial-guard'
 import healthRoutes from './routes/health'
 import authRoutes from './routes/auth'
@@ -26,10 +27,12 @@ async function buildApp() {
 
   fastify.decorate('config', config)
 
-  // Plugins — ordem importa: postgres → redis → serial-guard
+  // Plugins — ordem importa: postgres → redis → radius-start → serial-guard
+  // radius-start precisa do redis já decorado pra MAB lookup
   await fastify.register(cors, { origin: true })
   await fastify.register(postgresPlugin)
   await fastify.register(redisPlugin)
+  await fastify.register(radiusStartPlugin)
   await fastify.register(serialGuardPlugin)
 
   // Rotas

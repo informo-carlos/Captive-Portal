@@ -1,10 +1,8 @@
 // Strategy RADIUS — ponto de entrada único. Sempre importar daqui.
 //
-// Este arquivo é o STUB da task B9: expõe a interface pública que o resto do
-// backend vai consumir (verify-otp.ts em B12, plugin de boot em B10), mas as
-// implementações concretas ainda são no-op. Nas tasks seguintes:
-//
-//   B10 → listener.ts (UDP/1812 Access-Request/Accept/Reject + MAB via Redis)
+// Progresso das tasks:
+//   B9  → stub com start/stop/sendCoA noop + tipos ✓
+//   B10 → listener.ts real (UDP/1812 Access-Request/Accept/Reject + MAB Redis) ✓
 //   B11 → coa.ts (CoA-Disconnect UDP/3799) + accounting.ts (UDP/1813)
 //   B12 → integração verify-otp.ts (grava autorização no Redis + sendCoA)
 //
@@ -12,6 +10,8 @@
 // Princípio MAB / zero cadastro prévio: docs/spec-radius-auth.md §1.1
 
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify'
+import type { Redis } from 'ioredis'
+import { createListener, type RadiusListener } from './listener'
 
 export interface RadiusServiceConfig {
   enabled: boolean
@@ -57,54 +57,50 @@ export interface CoAResult {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Implementação
+// Lifecycle
 // ──────────────────────────────────────────────────────────────────────────
-//
-// Nesta fase (B9) os métodos são no-op com log estruturado pra confirmar
-// que a integração tá wired. O listener UDP real entra em B10.
 
-let started = false
+let listener: RadiusListener | null = null
+
+export interface StartDeps {
+  fastify: FastifyInstance
+  config: RadiusServiceConfig
+  tenantId: string
+  redis: Redis
+}
 
 /**
- * Sobe o listener RADIUS (UDP/1812 auth + UDP/1813 accounting) se
- * `config.enabled=true`. No-op caso contrário — tenants em modo sonicwall
- * nunca tocam esta função.
+ * Sobe o listener RADIUS (UDP/1812 auth) se `config.enabled=true`.
+ * Tenants em modo sonicwall nunca tocam esta função.
+ * Accounting (UDP/1813) entra em B11 neste mesmo ponto.
  */
-export async function start(
-  fastify: FastifyInstance,
-  config: RadiusServiceConfig,
-): Promise<void> {
+export async function start(deps: StartDeps): Promise<void> {
+  const { fastify, config, tenantId, redis } = deps
+
   if (!config.enabled) {
     fastify.log.info({ radius: 'disabled' }, 'radius_service_skipped')
     return
   }
 
-  if (started) {
+  if (listener) {
     fastify.log.warn({ radius: 'already_started' }, 'radius_service_start_ignored')
     return
   }
 
-  // B10 entra aqui: abrir socket dgram em config.authPort e config.acctPort.
-  fastify.log.info(
-    {
-      authPort: config.authPort,
-      acctPort: config.acctPort,
-      coaPort: config.coaPort,
-      sessionTimeoutSec: config.sessionTimeoutSec,
-      // sharedSecret NUNCA logar.
-    },
-    'radius_service_started_stub',
-  )
-
-  started = true
+  listener = await createListener({
+    config,
+    tenantId,
+    redis,
+    logger: fastify.log,
+  })
 }
 
 /** Fecha sockets UDP. Idempotente. */
 export async function stop(logger?: FastifyBaseLogger): Promise<void> {
-  if (!started) return
+  if (!listener) return
   logger?.info({ radius: 'stopping' }, 'radius_service_stop')
-  // B10 entra aqui: fechar sockets.
-  started = false
+  await listener.stop()
+  listener = null
 }
 
 /**
