@@ -123,3 +123,16 @@ export interface UpdateTenantRequest {
   session_duration_minutes?: number
   branding?: TenantBranding
 }
+
+/**
+ * Response de `GET /admin/tenants/:id/radius-status`.
+ * Tenant não-RADIUS devolve `enabled: false` (campos vazios). Tenant RADIUS
+ * devolve `online` derivado de status=active + accounting recente (<5min) ou
+ * nunca visto (tenant novo ainda sem tráfego).
+ */
+export interface TenantRadiusStatus {
+  enabled: boolean
+  online: boolean
+  active_sessions: number
+  last_accounting_at: string | null
+}
