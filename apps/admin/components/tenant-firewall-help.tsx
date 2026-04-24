@@ -218,12 +218,16 @@ export function TenantFirewallHelp(props: Props) {
         {!hasPorts && (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
             <p className="text-[11px] text-amber-400/90 leading-relaxed">
-              <strong>Placeholders no snippet:</strong> substitua{' '}
-              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;VPS_IP&gt;</code>,{' '}
-              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;PORTA_AUTH&gt;</code>,{' '}
-              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;PORTA_ACCT&gt;</code> e{' '}
+              <strong>Aguardando provisioner:</strong> as portas UDP aparecerão
+              aqui automaticamente quando o tenant passar pra{' '}
+              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">active</code>.
+              Enquanto isso o snippet usa{' '}
+              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;PORTA_AUTH&gt;</code>{' '}
+              /{' '}
+              <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;PORTA_ACCT&gt;</code>{' '}
+              como placeholder. O{' '}
               <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[10px]">&lt;SHARED_SECRET&gt;</code>{' '}
-              antes de colar no firewall. As portas UDP aparecerão aqui quando o provisioner terminar (B13).
+              você sempre preenche à mão (o painel nunca devolve em claro).
             </p>
           </div>
         )}

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { TenantDetail } from '@captive-portal/shared'
-import { getTenant, updateTenantStatus, deleteTenant, retryTenantProvisioning } from '../../../../lib/api'
+import type { TenantDetail, TenantRadiusStatus } from '@captive-portal/shared'
+import { getTenant, updateTenantStatus, deleteTenant, retryTenantProvisioning, getTenantRadiusStatus } from '../../../../lib/api'
 import { ApiRequestError } from '../../../../lib/api'
 import { useAuth } from '../../../../lib/auth-context'
 import { useNotifications } from '../../../../lib/notification-context'
@@ -58,6 +58,34 @@ export default function TenantDetailPage() {
     const handle = setInterval(fetchTenant, 3000)
     return () => clearInterval(handle)
   }, [tenant?.status, fetchTenant])
+
+  // Status RADIUS — active_sessions, online/offline, last_accounting_at.
+  // Só faz sentido consultar pra tenants RADIUS ativos (enabled=false senão).
+  // Poll de 15s — o endpoint é barato (2 queries) e o operador precisa ver
+  // "online" aparecer logo depois que o firewall do cliente começa a falar.
+  const [radiusStatus, setRadiusStatus] = useState<TenantRadiusStatus | null>(null)
+  useEffect(() => {
+    if (!tenant || tenant.auth_mode !== 'radius' || tenant.status !== 'active') {
+      setRadiusStatus(null)
+      return
+    }
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const s = await getTenantRadiusStatus(tenant.id)
+        if (!cancelled) setRadiusStatus(s)
+      } catch {
+        // silencioso — se o endpoint falhar, a UI fica sem badge (melhor que
+        // piscar erros pro operador). Volta no próximo poll.
+      }
+    }
+    poll()
+    const handle = setInterval(poll, 15000)
+    return () => {
+      cancelled = true
+      clearInterval(handle)
+    }
+  }, [tenant])
 
   const [retrying, setRetrying] = useState(false)
   const handleRetryProvisioning = async () => {
@@ -331,16 +359,29 @@ export default function TenantDetailPage() {
 
           {tenant.auth_mode === 'radius' && (
             <div className="glass-card rounded-xl">
-              <div className="border-b border-t-default px-6 py-4 flex items-center justify-between">
+              <div className="border-b border-t-default px-6 py-4 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-t-secondary">Configuração RADIUS</h2>
-                <span className="rounded-full bg-edge-cyan/10 px-2 py-0.5 text-[10px] font-medium text-edge-cyan border border-edge-cyan/20">
-                  MAB + CoA
-                </span>
+                <div className="flex items-center gap-2">
+                  <RadiusOnlineBadge status={radiusStatus} tenantStatus={tenant.status} />
+                  <span className="rounded-full bg-edge-cyan/10 px-2 py-0.5 text-[10px] font-medium text-edge-cyan border border-edge-cyan/20">
+                    MAB + CoA
+                  </span>
+                </div>
               </div>
               <div className="px-6 py-4 space-y-3">
                 <InfoRow
                   label="Shared secret"
                   value={tenant.radius_config?.has_shared_secret ? '••••••••  (criptografado)' : '(não configurado)'}
+                />
+                <InfoRow
+                  label="Porta Auth (UDP)"
+                  value={tenant.radius_auth_port ? String(tenant.radius_auth_port) : '(aguardando provisioner)'}
+                  mono
+                />
+                <InfoRow
+                  label="Porta Accounting (UDP)"
+                  value={tenant.radius_acct_port ? String(tenant.radius_acct_port) : '(aguardando provisioner)'}
+                  mono
                 />
                 <InfoRow
                   label="Porta CoA (NAS)"
@@ -365,26 +406,22 @@ export default function TenantDetailPage() {
                   }
                   mono
                 />
-                <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-400/90">
-                    Porta UDP do container
-                  </p>
-                  <p className="mt-1 text-xs text-t-label leading-relaxed">
-                    Configure o firewall pra mandar RADIUS Auth/Accounting pra{' '}
-                    <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[11px]">
-                      VPS:&lt;porta-alocada&gt;
-                    </code>
-                    . A porta UDP é alocada pelo provisioner no range{' '}
-                    <code className="rounded bg-t-input px-1 py-0.5 font-mono text-[11px]">18120-18219</code>{' '}
-                    e será exibida aqui quando o tenant terminar de provisionar (status=&apos;active&apos;).
-                  </p>
-                </div>
+                {radiusStatus?.enabled && (
+                  <InfoRow
+                    label="Sessões ativas (accounting)"
+                    value={String(radiusStatus.active_sessions)}
+                    mono
+                  />
+                )}
               </div>
             </div>
           )}
 
           {tenant.auth_mode === 'radius' && (
             <TenantFirewallHelp
+              vpsHost={typeof window !== 'undefined' ? window.location.hostname : undefined}
+              radiusAuthPort={tenant.radius_auth_port ?? undefined}
+              radiusAcctPort={tenant.radius_acct_port ?? undefined}
               coaPort={tenant.radius_config?.coa_port}
             />
           )}
@@ -466,5 +503,67 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <span className="text-[11px] font-medium uppercase tracking-wider text-t-label">{label}</span>
       <span className={`text-sm text-t-secondary text-right ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
+  )
+}
+
+/**
+ * Badge de status do RADIUS. 3 estados:
+ *   - tenant inativo/provisionando: "Aguardando" (neutro)
+ *   - status ainda não carregado (primeiro poll): "Verificando..." (neutro animado)
+ *   - online=true: verde ("Online") — container ativo + accounting recente (ou nunca visto)
+ *   - online=false: vermelho ("Offline") — accounting parou >5min
+ *
+ * Heurística de "online" vem do backend (spec §9 + B12 radius-status).
+ */
+function RadiusOnlineBadge({
+  status,
+  tenantStatus,
+}: {
+  status: TenantRadiusStatus | null
+  tenantStatus: string
+}) {
+  if (tenantStatus !== 'active') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-500/20">
+        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-slate-400" />
+        Aguardando
+      </span>
+    )
+  }
+  if (status === null) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-500/20">
+        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
+        Verificando...
+      </span>
+    )
+  }
+  if (status.online) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-edge-cyan/10 px-2 py-0.5 text-[10px] font-medium text-edge-cyan border border-edge-cyan/20"
+        title={
+          status.last_accounting_at
+            ? `Último accounting: ${new Date(status.last_accounting_at).toLocaleString('pt-BR')}`
+            : 'Container ativo, nenhum accounting ainda recebido'
+        }
+      >
+        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-edge-cyan" />
+        Online
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400 border border-red-500/20"
+      title={
+        status.last_accounting_at
+          ? `Sem accounting desde ${new Date(status.last_accounting_at).toLocaleString('pt-BR')}`
+          : 'Nenhum accounting recebido — verifique firewall'
+      }
+    >
+      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-400" />
+      Offline
+    </span>
   )
 }

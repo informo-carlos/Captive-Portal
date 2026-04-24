@@ -6,6 +6,7 @@ import type {
   AdminUser,
   Tenant,
   TenantDetail,
+  TenantRadiusStatus,
   CreateTenantRequest,
   UpdateTenantRequest,
   WifiSession,
@@ -164,6 +165,10 @@ export function retryTenantProvisioning(id: string): Promise<Tenant> {
   return request<Tenant>(`/admin/tenants/${id}/retry-provisioning`, {
     method: 'POST',
   })
+}
+
+export function getTenantRadiusStatus(id: string): Promise<TenantRadiusStatus> {
+  return request<TenantRadiusStatus>(`/admin/tenants/${id}/radius-status`)
 }
 
 // ─── Sessions ───────────────────────────────────────────
