@@ -49,6 +49,8 @@ logs/
 # ─────────────────────────────────────────
 .DS_Store
 Thumbs.db
+# WSL/NTFS — metadados de zonas geradas pelo Windows ao extrair .zip
+*:Zone.Identifier
 
 # ─────────────────────────────────────────
 # IDEs
@@ -57,6 +59,14 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+# Extensão VSCodeCounter — dumps de contagem de linhas
+.VSCodeCounter/
+
+# ─────────────────────────────────────────
+# Exports temporários (HTML gerado a partir de .md, etc.)
+# ─────────────────────────────────────────
+*_tmp.html
+*.tmp.html
 
 # ─────────────────────────────────────────
 # Testes
