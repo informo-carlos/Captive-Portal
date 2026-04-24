@@ -48,15 +48,12 @@ function extractDigits(value: string): string {
 
 export function validatePhone(digits: string): string | null {
   if (digits.length === 0) return 'Informe seu número de celular.'
-  if (digits.length < 10) return 'Número incompleto.'
-  if (digits.length !== 10 && digits.length !== 11)
-    return 'Número de telefone inválido.'
+  if (digits.length < 11) return 'Número incompleto.'
 
   const ddd = parseInt(digits.slice(0, 2), 10)
   if (!VALID_DDDS.includes(ddd)) return 'DDD inválido.'
 
-  if (digits.length === 11 && digits[2] !== '9')
-    return 'Número de celular inválido.'
+  if (digits[2] !== '9') return 'Número de celular inválido.'
 
   return null
 }
