@@ -15,6 +15,7 @@
 6. [Fix no admin-backend — CORS para PATCH/DELETE](#6-fix-no-admin-backend)
 7. [Controle de permissoes por role](#7-controle-de-permissoes)
 8. [Como testar](#8-como-testar)
+9. [Tenants RADIUS — guia operacional](#9-tenants-radius--guia-operacional)
 
 ---
 
@@ -716,7 +717,132 @@ cd apps/admin && npx next build
 
 ---
 
-## Proximas tasks que constroem em cima da F5
+## 9. Tenants RADIUS — guia operacional
+
+> Esta seção cobre o fluxo completo de criar, configurar e diagnosticar
+> um tenant RADIUS pelo painel. Para a especificação técnica do protocolo
+> e do fluxo MAB + CoA, ver [`docs/spec-radius-auth.md`](spec-radius-auth.md).
+> Para a operação de baixo nível (provisioner, portas UDP, walled-garden),
+> ver [`docs/runbook-radius.md`](runbook-radius.md).
+
+Tenants RADIUS são usados quando o firewall do cliente **não é SonicWall**
+(Mikrotik, Unifi, pfSense, SonicWall com RADIUS nativo, etc.). Em vez de
+a VPS chamar a API REST do fabricante para liberar acesso, o firewall
+fala RADIUS UDP com um container dedicado do tenant. O fluxo MAB funciona
+assim:
+
+1. Guest conecta no SSID → Mikrotik envia Access-Request (UDP/1812) para
+   a VPS na porta alocada do tenant.
+2. Container responde Access-Reject (1ª vez) → guest é redirecionado
+   pro portal captivo.
+3. Guest preenche celular → OTP por SMS → digita OTP no portal.
+4. Portal grava autorização efêmera no Redis + dispara CoA-Disconnect
+   (UDP/3799) pro Mikrotik.
+5. Mikrotik reconecta o MAC → Access-Request de novo → container
+   responde Access-Accept com Session-Timeout.
+6. Mikrotik começa a mandar Accounting (UDP/1813) — start, interim
+   updates, stop.
+
+### 9.1. Criar um tenant RADIUS
+
+Pré-requisito: o Dev 1 (backend/infra) confirmou que o range UDP
+`18120-18219` está liberado no firewall da VPS.
+
+1. `/tenants` → **Novo cliente**.
+2. Preencher nome, porta HTTP (29000-29099, única por tenant), seriais.
+3. Em **Modo de autenticação**, escolher **RADIUS**. O formulário muda —
+   seção SonicWall some, seção RADIUS aparece.
+4. **Shared secret:** gerar um segredo forte (32 chars recomendado) em
+   um gerador de senhas. Copiar na mesma hora pro gerenciador de senhas
+   do cliente — **o painel nunca devolve em claro depois de salvar**.
+5. **Porta CoA (NAS):** `3799` (default RFC 5176) — só mudar se o
+   firewall do cliente usa porta customizada.
+6. **Duração da sessão:** `14400` segundos (4h) default, cobre cafés e
+   hotéis. Para cenários longos (hotel com guest fixo), pode subir.
+7. **NAS permitidos:** lista de IPs/CIDRs do firewall do cliente. Se
+   vazio, aceita de qualquer origem — só use vazio em lab ou quando o
+   cliente tem IP dinâmico sem alternativa.
+8. Token Zenvia + Sender Zenvia (SMS do OTP continua sendo pela Zenvia
+   independente do modo).
+9. **Salvar** — tenant entra em `status='provisioning'`.
+
+O provisioner (worker interno) vê o status, aloca um **par de portas UDP**
+(`radius_auth_port` + `radius_acct_port`, consecutivas no range 18120-18219),
+cria o container Docker com port bindings UDP/1812 + UDP/1813 mapeados
+pras portas alocadas, e move pra `status='active'`. Normalmente leva
+10-20 segundos. A página `/tenants/:id` faz polling automático — não
+precisa dar F5.
+
+### 9.2. Configurar o firewall do cliente
+
+Na página `/tenants/:id` do tenant ativo, o card **"Configurar firewall"**
+tem snippets prontos pra copiar pra cada fabricante:
+
+- **Mikrotik RouterOS** — `/radius add`, `/radius incoming`, walled-garden
+  via `/ip hotspot walled-garden add`.
+- **Unifi Network Application** — RADIUS Profile + MAC Authentication
+  no SSID.
+- **SonicWall (6.5/7) em modo RADIUS nativo** — Manage → Users → RADIUS.
+- **pfSense** — System → User Manager → Authentication Servers (FreeRADIUS).
+
+Os snippets vêm preenchidos com **os valores reais desse tenant** (VPS,
+portas UDP alocadas, CoA port). O único placeholder que sobra é
+`<SHARED_SECRET>` — o operador cola o segredo salvo no gerenciador de
+senhas do cliente.
+
+### 9.3. Verificar que está funcionando — badge online/offline
+
+No card **"Configuração RADIUS"** do tenant tem um badge que atualiza
+a cada 15s lendo `GET /admin/tenants/:id/radius-status`:
+
+| Badge | Significado |
+|-------|-------------|
+| **Verificando...** | Primeiro poll ainda não voltou (<15s após abrir a página) |
+| **Aguardando** | Tenant está em `provisioning`/`inactive`/`failed` — não polla |
+| **Online** | Container ativo **e** accounting recebido <5min atrás **OU** nunca visto (tenant novo sem tráfego) |
+| **Offline** | Container ativo mas último accounting foi >5min atrás (firewall parou de falar) |
+
+Tooltip mostra o horário do último accounting formatado em pt-BR.
+
+### 9.4. Diagnóstico — o que checar quando dá errado
+
+**Badge ficou "Offline" depois de ter funcionado.**
+- O firewall parou de mandar accounting. Checar se o equipamento está
+  acessível e configurado com as portas UDP corretas.
+- Dev 1 pode rodar `docker logs portal-<slug>-<porta>` na VPS pra ver
+  se chegam Access-Requests.
+
+**Tenant ficou em `status='failed'` durante o provisionamento.**
+- Banner vermelho na página mostra `provisioning_error` com a mensagem
+  do worker.
+- Botão **"Tentar novamente"** dispara `POST /admin/tenants/:id/retry-provisioning`.
+- Causas comuns: range UDP esgotado (100 slots), conflito de nome de
+  container, healthcheck falhando.
+
+**Snippet do firewall não tem portas (`<PORTA_AUTH>`, `<PORTA_ACCT>`).**
+- Isso aparece enquanto o tenant ainda está em `provisioning`. Espera o
+  provisioner fechar e as portas reais aparecem automaticamente.
+
+**Cliente diz "tô digitando o código certo e não libera".**
+- Checar `auth_attempts` no DB pra ver se o OTP foi validado.
+- Se validado mas o firewall não libera: o CoA pode estar sendo
+  bloqueado. Verificar se a porta CoA (default 3799) está aberta no
+  firewall do cliente e se o NAS tá listado em `nas_ip_allowlist` (ou
+  lista vazia).
+
+**Tenant criado com `auth_mode='radius'` mas campo `shared_secret` vazio
+na UI.**
+- Impossível — a validação `missing_radius_fields` barra POST sem
+  shared_secret. Se viu isso, abrir issue com o payload que gerou.
+
+**Não consigo mudar o modo de `sonicwall` pra `radius` (ou vice-versa).**
+- Correto. O PUT explicitamente bloqueia mudança de `auth_mode`. A
+  operação completa (dealocar portas + recriar container + trocar
+  validações) fica pra v2. Workaround: deletar + recriar tenant.
+
+---
+
+## 10. Proximas tasks que constroem em cima da F5
 
 | Task | O que vai adicionar |
 |------|-------------------|

@@ -22,7 +22,7 @@ const VENDORS: { key: Vendor; label: string }[] = [
   { key: 'pfsense', label: 'pfSense' },
 ]
 
-function buildSnippet(vendor: Vendor, ctx: Props): string {
+export function buildSnippet(vendor: Vendor, ctx: Props): string {
   const vps = ctx.vpsHost ?? '<VPS_IP>'
   const authPort = ctx.radiusAuthPort ?? '<PORTA_AUTH>'
   const acctPort = ctx.radiusAcctPort ?? '<PORTA_ACCT>'
