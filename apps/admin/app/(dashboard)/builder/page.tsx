@@ -538,47 +538,59 @@ export default function DashboardBuilderPage() {
                 }
               })(),
             }))}
-          chartData={{
-            areaChart: activeLayout.widgets.some((w) => w.type === 'area-chart' && w.dataSource === 'sessions_by_day') && summary.by_day.length > 0
-              ? {
-                  labels: summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` }),
-                  series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
-                }
-              : undefined,
-            lineChart: activeLayout.widgets.some((w) => w.type === 'line-chart' && w.dataSource === 'sessions_by_day') && summary.by_day.length > 0
-              ? {
-                  labels: summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` }),
-                  series: { label: 'Sessões', values: summary.by_day.map((d) => d.sessions) },
-                }
-              : undefined,
-            donutChart: activeLayout.widgets.some((w) => w.type === 'pie-chart' && w.dataSource === 'success_vs_failure')
-              ? {
-                  successRate: summary.totals.success_rate,
-                  totalSessions: summary.totals.sessions,
-                  totalFailures: Math.max(0, summary.totals.auth_attempts - summary.totals.sessions),
-                }
-              : undefined,
-            barChart: activeLayout.widgets.some((w) => w.type === 'bar-chart' && w.dataSource === 'sessions_by_tenant') && summary.by_tenant.length > 0
-              ? {
-                  labels: summary.by_tenant.map((t) => t.tenant_name),
-                  values: summary.by_tenant.map((t) => t.sessions),
-                }
-              : undefined,
-            barChartByDay: activeLayout.widgets.some((w) => w.type === 'bar-chart' && w.dataSource === 'sessions_by_day') && summary.by_day.length > 0
-              ? {
-                  labels: summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` }),
-                  values: summary.by_day.map((d) => d.sessions),
-                }
-              : undefined,
-            tenantPieChart: activeLayout.widgets.some((w) => w.type === 'pie-chart' && w.dataSource === 'sessions_by_tenant') && summary.by_tenant.length > 0
-              ? {
-                  labels: summary.by_tenant.map((t) => t.tenant_name),
-                  values: summary.by_tenant.map((t) => t.sessions),
-                }
-              : undefined,
-          }}
-          columns={
-            summary.by_tenant.length > 0
+          chartData={(() => {
+            // Mirror widget-renderer fallbacks so the PDF matches what the user sees on screen.
+            const widgets = activeLayout.widgets
+            const hasAreaWidget = widgets.some((w) => w.type === 'area-chart')
+            const hasLineWidget = widgets.some((w) => w.type === 'line-chart')
+            const pieDonut = widgets.some((w) => w.type === 'pie-chart' && w.dataSource === 'success_vs_failure')
+            // PieChartWidget treats any dataSource !== 'success_vs_failure' as the tenant pie
+            const pieTenant = widgets.some((w) => w.type === 'pie-chart' && w.dataSource !== 'success_vs_failure')
+            const barByTenant = widgets.some((w) => w.type === 'bar-chart' && w.dataSource === 'sessions_by_tenant')
+            // BarChartWidget treats any dataSource !== 'sessions_by_tenant' as the by-day bar
+            const barByDay = widgets.some((w) => w.type === 'bar-chart' && w.dataSource !== 'sessions_by_tenant')
+
+            const dayLabels = summary.by_day.map((d) => { const [, m, day] = d.date.split('-'); return `${day}/${m}` })
+            const dayValues = summary.by_day.map((d) => d.sessions)
+
+            return {
+              areaChart: hasAreaWidget && summary.by_day.length > 0
+                ? { labels: dayLabels, series: { label: 'Sessões', values: dayValues } }
+                : undefined,
+              lineChart: hasLineWidget && summary.by_day.length > 0
+                ? { labels: dayLabels, series: { label: 'Sessões', values: dayValues } }
+                : undefined,
+              donutChart: pieDonut
+                ? {
+                    successRate: summary.totals.success_rate,
+                    totalSessions: summary.totals.sessions,
+                    totalFailures: Math.max(0, summary.totals.auth_attempts - summary.totals.sessions),
+                  }
+                : undefined,
+              barChart: barByTenant && summary.by_tenant.length > 0
+                ? {
+                    labels: summary.by_tenant.map((t) => t.tenant_name),
+                    values: summary.by_tenant.map((t) => t.sessions),
+                  }
+                : undefined,
+              barChartByDay: barByDay && summary.by_day.length > 0
+                ? { labels: dayLabels, values: dayValues }
+                : undefined,
+              tenantPieChart: pieTenant && summary.by_tenant.length > 0
+                ? {
+                    labels: summary.by_tenant.map((t) => t.tenant_name),
+                    values: summary.by_tenant.map((t) => t.sessions),
+                  }
+                : undefined,
+            }
+          })()}
+          columns={(() => {
+            // TableWidget renderer: 'sessions_by_tenant' → tenant columns; anything else → day columns
+            const tableWidget = activeLayout.widgets.find((w) => w.type === 'table')
+            const useTenant = tableWidget
+              ? tableWidget.dataSource === 'sessions_by_tenant'
+              : summary.by_tenant.length > 0
+            return useTenant
               ? [
                   { key: 'tenant_name', label: 'Tenant', enabled: true },
                   { key: 'sessions', label: 'Sessões', enabled: true },
@@ -588,9 +600,13 @@ export default function DashboardBuilderPage() {
                   { key: 'date', label: 'Data', enabled: true },
                   { key: 'sessions', label: 'Sessões', enabled: true },
                 ]
-          }
-          data={
-            summary.by_tenant.length > 0
+          })()}
+          data={(() => {
+            const tableWidget = activeLayout.widgets.find((w) => w.type === 'table')
+            const useTenant = tableWidget
+              ? tableWidget.dataSource === 'sessions_by_tenant'
+              : summary.by_tenant.length > 0
+            return useTenant
               ? summary.by_tenant.map((t) => ({
                   tenant_name: t.tenant_name,
                   sessions: t.sessions.toLocaleString('pt-BR'),
@@ -600,7 +616,7 @@ export default function DashboardBuilderPage() {
                   date: new Date(d.date).toLocaleDateString('pt-BR'),
                   sessions: d.sessions.toLocaleString('pt-BR'),
                 }))
-          }
+          })()}
           onClose={() => setShowExport(false)}
         />
       )}
