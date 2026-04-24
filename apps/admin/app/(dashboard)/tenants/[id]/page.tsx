@@ -10,6 +10,7 @@ import { useAuth } from '../../../../lib/auth-context'
 import { useNotifications } from '../../../../lib/notification-context'
 import { TenantModal } from '../../../../components/tenant-modal'
 import { TenantFirewallHelp } from '../../../../components/tenant-firewall-help'
+import { RadiusOnlineBadge } from '../../../../components/radius-online-badge'
 
 export default function TenantDetailPage() {
   const params = useParams()
@@ -503,67 +504,5 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <span className="text-[11px] font-medium uppercase tracking-wider text-t-label">{label}</span>
       <span className={`text-sm text-t-secondary text-right ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
-  )
-}
-
-/**
- * Badge de status do RADIUS. 3 estados:
- *   - tenant inativo/provisionando: "Aguardando" (neutro)
- *   - status ainda não carregado (primeiro poll): "Verificando..." (neutro animado)
- *   - online=true: verde ("Online") — container ativo + accounting recente (ou nunca visto)
- *   - online=false: vermelho ("Offline") — accounting parou >5min
- *
- * Heurística de "online" vem do backend (spec §9 + B12 radius-status).
- */
-function RadiusOnlineBadge({
-  status,
-  tenantStatus,
-}: {
-  status: TenantRadiusStatus | null
-  tenantStatus: string
-}) {
-  if (tenantStatus !== 'active') {
-    return (
-      <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-500/20">
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-slate-400" />
-        Aguardando
-      </span>
-    )
-  }
-  if (status === null) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-500/20">
-        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
-        Verificando...
-      </span>
-    )
-  }
-  if (status.online) {
-    return (
-      <span
-        className="inline-flex items-center rounded-full bg-edge-cyan/10 px-2 py-0.5 text-[10px] font-medium text-edge-cyan border border-edge-cyan/20"
-        title={
-          status.last_accounting_at
-            ? `Último accounting: ${new Date(status.last_accounting_at).toLocaleString('pt-BR')}`
-            : 'Container ativo, nenhum accounting ainda recebido'
-        }
-      >
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-edge-cyan" />
-        Online
-      </span>
-    )
-  }
-  return (
-    <span
-      className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400 border border-red-500/20"
-      title={
-        status.last_accounting_at
-          ? `Sem accounting desde ${new Date(status.last_accounting_at).toLocaleString('pt-BR')}`
-          : 'Nenhum accounting recebido — verifique firewall'
-      }
-    >
-      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-400" />
-      Offline
-    </span>
   )
 }

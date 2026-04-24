@@ -55,6 +55,13 @@ async function allocateRadiusPortPair(
   }
 
   // Procura o primeiro par (auth, acct=auth+1) livre.
+  //
+  // INVARIANTE: todos os pares alocados por esta função ocupam (par, ímpar)
+  // consecutivos. Iteramos só por posições pares (auth += 2) pra preservar
+  // isso — nunca alocamos começando num ímpar. Se alguém inserir manualmente
+  // no DB um par fora desse padrão (ex: 18121 como auth), o "slot ímpar"
+  // solto nunca é reaproveitado por este algoritmo, mas a UNIQUE constraint
+  // garante que não há conflito real. Reavaliar se expandirmos o range.
   for (let auth = RADIUS_PORT_MIN; auth < RADIUS_PORT_MAX; auth += 2) {
     const acct = auth + 1
     if (!used.has(auth) && !used.has(acct)) {
@@ -494,6 +501,19 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
 
       await client.query('COMMIT')
 
+      // Espelhamos o shape do GET /admin/tenants/:id (sanitize + has_* flags)
+      // pra a UI não precisar fazer um GET extra depois do POST só pra saber
+      // se o shared_secret/sender foram persistidos.
+      const radiusConfigPublic =
+        authMode === 'radius' && body.radius_config
+          ? {
+              coa_port: body.radius_config.coa_port,
+              session_timeout_sec: body.radius_config.session_timeout_sec,
+              nas_ip_allowlist: body.radius_config.nas_ip_allowlist,
+              has_shared_secret: !!body.radius_config.shared_secret,
+            }
+          : { has_shared_secret: false }
+
       return reply.code(201).send({
         id: tenant.id,
         name: tenant.name,
@@ -502,7 +522,9 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         auth_mode: tenant.auth_mode,
         radius_auth_port: tenant.radius_auth_port,
         radius_acct_port: tenant.radius_acct_port,
+        radius_config: radiusConfigPublic,
         serials: serialRows,
+        has_zenvia_sender: !!body.zenvia_sender,
         session_duration_minutes: tenant.session_duration_minutes,
         branding: tenant.branding || {},
         created_at: tenant.created_at,
