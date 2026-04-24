@@ -9,7 +9,11 @@ export interface PendingTenant {
   name: string
   port: number
   status: string
+  auth_mode: 'sonicwall' | 'radius'
   sonicwall_config: SonicwallConfigDecrypted
+  radius_config: RadiusConfigDecrypted | null
+  radius_auth_port: number | null
+  radius_acct_port: number | null
   zenvia_token: string
   zenvia_sender: string
   session_duration_minutes: number
@@ -17,15 +21,22 @@ export interface PendingTenant {
 }
 
 interface SonicwallConfigDecrypted {
-  host: string
+  host?: string
   port?: number
-  user: string
-  password: string
+  user?: string
+  password?: string
   firmware?: number
-  mode: 'rest' | 'lhm'
+  mode?: 'rest' | 'lhm'
   lhm_port?: number
   guest_service_user?: string
   guest_service_pass?: string
+}
+
+interface RadiusConfigDecrypted {
+  shared_secret?: string
+  coa_port?: number
+  session_timeout_sec?: number
+  nas_ip_allowlist?: string[]
 }
 
 interface TenantRow {
@@ -33,7 +44,11 @@ interface TenantRow {
   name: string
   port: number
   status: string
+  auth_mode: 'sonicwall' | 'radius' | null
   sonicwall_config: unknown
+  radius_config: unknown
+  radius_auth_port: number | null
+  radius_acct_port: number | null
   zenvia_token: string
   zenvia_sender: string
   session_duration_minutes: number
@@ -41,15 +56,23 @@ interface TenantRow {
 }
 
 function decryptSonicwallConfig(raw: unknown): SonicwallConfigDecrypted {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('sonicwall_config vazio ou inválido')
-  }
+  // Radius-only tenants têm sonicwall_config '{}' — válido, só retorna vazio.
+  if (!raw || typeof raw !== 'object') return {}
   const obj = raw as { encrypted?: string }
-  if (!obj.encrypted || typeof obj.encrypted !== 'string') {
-    throw new Error('sonicwall_config não está no formato { encrypted }')
+  if (!obj.encrypted) return obj as SonicwallConfigDecrypted
+  if (typeof obj.encrypted !== 'string') {
+    throw new Error('sonicwall_config.encrypted não é string')
   }
   const json = decrypt(obj.encrypted, config.encryptionKey)
   return JSON.parse(json) as SonicwallConfigDecrypted
+}
+
+function decryptRadiusConfig(raw: unknown): RadiusConfigDecrypted | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as { encrypted?: string }
+  if (!obj.encrypted) return null
+  const json = decrypt(obj.encrypted, config.encryptionKey)
+  return JSON.parse(json) as RadiusConfigDecrypted
 }
 
 /**
@@ -65,7 +88,9 @@ function decryptSonicwallConfig(raw: unknown): SonicwallConfigDecrypted {
  */
 export async function fetchPendingTenants(): Promise<PendingTenant[]> {
   const res = await pool.query<TenantRow>(
-    `SELECT t.id, t.name, t.port, t.status, t.sonicwall_config,
+    `SELECT t.id, t.name, t.port, t.status, t.auth_mode,
+            t.sonicwall_config, t.radius_config,
+            t.radius_auth_port, t.radius_acct_port,
             t.zenvia_token, t.zenvia_sender, t.session_duration_minutes,
             COALESCE(
               (SELECT array_agg(ts.serial) FROM tenant_serials ts WHERE ts.tenant_id = t.id),
@@ -82,7 +107,11 @@ export async function fetchPendingTenants(): Promise<PendingTenant[]> {
     name: row.name,
     port: row.port,
     status: row.status,
+    auth_mode: row.auth_mode ?? 'sonicwall',
     sonicwall_config: decryptSonicwallConfig(row.sonicwall_config),
+    radius_config: decryptRadiusConfig(row.radius_config),
+    radius_auth_port: row.radius_auth_port,
+    radius_acct_port: row.radius_acct_port,
     zenvia_token: decrypt(row.zenvia_token, config.encryptionKey),
     zenvia_sender: row.zenvia_sender ? decrypt(row.zenvia_sender, config.encryptionKey) : '',
     session_duration_minutes: row.session_duration_minutes,

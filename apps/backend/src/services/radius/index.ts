@@ -123,6 +123,20 @@ export async function stop(logger?: FastifyBaseLogger): Promise<void> {
 }
 
 /**
+ * Estado dos listeners pra exposição no /health.
+ * authListening/acctListening = true se os sockets UDP estão bindados.
+ */
+export function getListenerStatus(): {
+  authListening: boolean
+  acctListening: boolean
+} {
+  return {
+    authListening: listener !== null && listener.authAddress() !== null,
+    acctListening: accountingListener !== null && accountingListener.authAddress() !== null,
+  }
+}
+
+/**
  * Dispara CoA-Disconnect pro NAS forçando re-auth do MAC autorizado.
  * Delega pra services/radius/coa.ts (UDP/3799, RFC 5176).
  */
