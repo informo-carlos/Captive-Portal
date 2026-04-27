@@ -37,6 +37,28 @@ export async function removeExistingContainer(name: string): Promise<void> {
 }
 
 /**
+ * Versão de removeExistingContainer que aceita o ID do container (não o
+ * nome). Usado pelo cleanup de tenants soft-deletados — temos o
+ * `container_id` registrado no banco, mas o nome derivado pode mudar se
+ * o tenant foi renomeado antes do delete. ID é estável.
+ */
+export async function removeContainerById(containerId: string): Promise<void> {
+  try {
+    const container = docker.getContainer(containerId)
+    await container.inspect()
+    try {
+      await container.stop({ t: 5 })
+    } catch {
+      // já estava parado, tudo bem
+    }
+    await container.remove({ force: true })
+  } catch (err: unknown) {
+    const e = err as { statusCode?: number }
+    if (e.statusCode !== 404) throw err
+  }
+}
+
+/**
  * Cria e sobe o container do portal pra este tenant.
  * Retorna o containerId ao iniciar.
  */

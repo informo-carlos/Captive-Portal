@@ -151,3 +151,47 @@ export async function markTenantFailed(
     [tenantId, errorMessage.slice(0, 2000)],
   )
 }
+
+/**
+ * Tenants soft-deletados que ainda têm container Docker rodando.
+ *
+ * O backend só faz UPDATE status='deleted' + deleted_at=NOW; não toca em
+ * Docker nem em nginx. Sem essa rotina, o container fica "fantasma"
+ * segurando portas (UDP RADIUS, principalmente — bug que travou criação
+ * de novos tenants em produção).
+ *
+ * `container_id IS NOT NULL` filtra rows que NUNCA tiveram container
+ * (provisioning falhou antes de criar) — esses não têm o que limpar.
+ */
+export interface DeletedTenant {
+  id: string
+  port: number
+  container_id: string
+  name: string
+}
+
+export async function fetchDeletedTenantsToCleanup(): Promise<DeletedTenant[]> {
+  const res = await pool.query<DeletedTenant>(
+    `SELECT id, port, container_id, name
+       FROM tenants
+      WHERE status = 'deleted'
+        AND container_id IS NOT NULL
+      ORDER BY updated_at ASC
+      LIMIT 10`,
+  )
+  return res.rows
+}
+
+/**
+ * Após cleanup bem-sucedido (container removido + nginx config removido),
+ * zera container_id pra não tentar limpar de novo.
+ */
+export async function markTenantCleaned(tenantId: string): Promise<void> {
+  await pool.query(
+    `UPDATE tenants
+        SET container_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+    [tenantId],
+  )
+}
