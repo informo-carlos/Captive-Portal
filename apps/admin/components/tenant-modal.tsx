@@ -84,7 +84,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
       setRadiusForm({
         shared_secret: '',
         coa_port: String(tenant.radius_config?.coa_port ?? 3799),
-        session_timeout_sec: String(tenant.radius_config?.session_timeout_sec ?? 14400),
         nas_ip_allowlist: tenant.radius_config?.nas_ip_allowlist ?? [],
       })
       setForm({
@@ -180,7 +179,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
         if (form.auth_mode === 'radius') {
           const patch: Partial<RadiusConfig> = {
             coa_port: parseInt(radiusForm.coa_port) || 3799,
-            session_timeout_sec: parseInt(radiusForm.session_timeout_sec) || 14400,
             nas_ip_allowlist: radiusForm.nas_ip_allowlist,
           }
           if (radiusForm.shared_secret.trim()) {
@@ -240,7 +238,6 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           data.radius_config = {
             shared_secret: radiusForm.shared_secret.trim(),
             coa_port: parseInt(radiusForm.coa_port) || 3799,
-            session_timeout_sec: parseInt(radiusForm.session_timeout_sec) || 14400,
             nas_ip_allowlist: radiusForm.nas_ip_allowlist,
           }
         } else {

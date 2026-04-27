@@ -33,6 +33,12 @@ export type AuthMode = 'sonicwall' | 'radius'
 /**
  * Config RADIUS por tenant. `shared_secret` é criptografado AES-256 antes de
  * gravar — pra cliente nunca vira no response, usar `RadiusConfigPublic`.
+ *
+ * NOTA: `session_timeout_sec` foi removido em fix/tenant-fields-optional.
+ * A duração da sessão vem de `tenants.session_duration_minutes` (1 fonte
+ * de verdade pros 2 modos). Provisioner converte minutos → segundos pro
+ * env `RADIUS_SESSION_TIMEOUT_SEC` interno do container.
+ *
  * Spec: docs/spec-radius-auth.md §3.3
  */
 export interface RadiusConfig {
@@ -40,8 +46,6 @@ export interface RadiusConfig {
   shared_secret: string
   /** Porta UDP do CoA no NAS — default 3799 (RFC 5176). */
   coa_port?: number
-  /** Duração da sessão em segundos (vai como Session-Timeout no Access-Accept). */
-  session_timeout_sec?: number
   /** Lista de IPs/CIDRs permitidos a enviar pacotes RADIUS — vazio = aceita de qualquer NAS. */
   nas_ip_allowlist?: string[]
 }
@@ -99,16 +103,18 @@ export interface TenantDetail extends Tenant {
 export interface CreateTenantRequest {
   name: string
   port: number
+  /** Obrigatória — minutes. */
+  session_duration_minutes: number
+  serials: { serial: string; role: 'primary' | 'secondary' }[]
   /** Default 'sonicwall' se omitido (preserva semântica pré-RADIUS). */
   auth_mode?: AuthMode
-  serials: { serial: string; role: 'primary' | 'secondary' }[]
-  /** Obrigatório quando auth_mode='sonicwall' (ou omitido). */
+  /** Opcional — se vazio quando auth_mode='sonicwall' o operador completa depois via PUT. */
   sonicwall_config?: SonicwallConfig
-  /** Obrigatório quando auth_mode='radius'. */
+  /** Opcional, mas com `shared_secret` exigido se auth_mode='radius' (handler valida). */
   radius_config?: RadiusConfig
-  zenvia_token: string
-  zenvia_sender: string
-  session_duration_minutes?: number
+  /** Opcional — sem zenvia o tenant existe mas SMS não funciona até preencher. */
+  zenvia_token?: string
+  zenvia_sender?: string
   branding?: TenantBranding
 }
 

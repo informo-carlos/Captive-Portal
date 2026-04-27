@@ -76,13 +76,15 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
 
   // RADIUS env vars — o listener sobe interno nas 1812/1813, o provisioner
   // cuida do port mapping externo via HostConfig.PortBindings (abaixo).
+  // RADIUS_SESSION_TIMEOUT_SEC vem de session_duration_minutes do tenant
+  // (1 fonte de verdade) — não duplicamos em radius_config.
   if (isRadius) {
     env.push(
       `RADIUS_AUTH_PORT=1812`,
       `RADIUS_ACCT_PORT=1813`,
       `RADIUS_COA_PORT=${rad?.coa_port ?? 3799}`,
       `RADIUS_SHARED_SECRET=${rad?.shared_secret ?? ''}`,
-      `RADIUS_SESSION_TIMEOUT_SEC=${rad?.session_timeout_sec ?? 14400}`,
+      `RADIUS_SESSION_TIMEOUT_SEC=${tenant.session_duration_minutes * 60}`,
     )
   }
 

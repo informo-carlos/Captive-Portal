@@ -389,15 +389,9 @@ export default function TenantDetailPage() {
                   value={String(tenant.radius_config?.coa_port ?? 3799)}
                   mono
                 />
-                <InfoRow
-                  label="Duração da sessão"
-                  value={
-                    tenant.radius_config?.session_timeout_sec
-                      ? `${tenant.radius_config.session_timeout_sec}s  (~${(tenant.radius_config.session_timeout_sec / 3600).toFixed(1)}h)`
-                      : '14400s (~4h)'
-                  }
-                  mono
-                />
+                {/* Duração da sessão removida do card RADIUS — vem de
+                    session_duration_minutes do tenant (1 fonte de verdade).
+                    O Provisioner converte minutos → segundos pro listener. */}
                 <InfoRow
                   label="NAS permitidos"
                   value={

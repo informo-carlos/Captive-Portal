@@ -35,7 +35,6 @@ interface SonicwallConfigDecrypted {
 interface RadiusConfigDecrypted {
   shared_secret?: string
   coa_port?: number
-  session_timeout_sec?: number
   nas_ip_allowlist?: string[]
 }
 
