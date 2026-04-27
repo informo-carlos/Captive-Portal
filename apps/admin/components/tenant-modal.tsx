@@ -300,9 +300,17 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
     return serials
   }
 
+  // ATENÇÃO: comparação com `field` precisa garantir que o argumento foi
+  // passado. Sem esse guarda, `inputClass()` (sem arg) resolve `field` em
+  // undefined, e `fieldError?.field === undefined` vira true quando
+  // `fieldError` também é null/undefined — pintando TODOS os inputs sem
+  // binding de campo de vermelho mesmo sem erro algum (branding, Zenvia,
+  // duração, secundário, SonicWall etc.).
   const inputClass = (field?: string) =>
     `w-full rounded-lg border bg-t-input px-3 py-2 text-sm text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40 ${
-      fieldError?.field === field ? 'border-red-500/50' : 'border-t-input'
+      field !== undefined && fieldError?.field === field
+        ? 'border-red-500/50'
+        : 'border-t-input'
     }`
 
   const durationHours = parseInt(form.session_duration_minutes) / 60
