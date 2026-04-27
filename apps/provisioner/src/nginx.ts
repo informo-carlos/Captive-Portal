@@ -49,3 +49,20 @@ server {
   await fs.writeFile(file, conf, 'utf8')
   return file
 }
+
+/**
+ * Remove o bloco nginx do tenant deletado. Idempotente — se o arquivo
+ * já não existe, retorna false sem erro. Caller decide se precisa
+ * reload do nginx (só vale a pena se algum arquivo foi removido).
+ */
+export async function removeNginxConfig(port: number): Promise<boolean> {
+  const file = path.join(config.nginxConfDir, `${port}.conf`)
+  try {
+    await fs.unlink(file)
+    return true
+  } catch (err) {
+    const e = err as { code?: string }
+    if (e.code === 'ENOENT') return false
+    throw err
+  }
+}
