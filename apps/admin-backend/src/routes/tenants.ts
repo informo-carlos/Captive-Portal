@@ -24,7 +24,6 @@ type AuthMode = 'sonicwall' | 'radius'
 interface RadiusConfig {
   shared_secret?: string
   coa_port?: number
-  session_timeout_sec?: number
   nas_ip_allowlist?: string[]
 }
 
@@ -277,12 +276,16 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // ─── POST /admin/tenants ────────────────────────────────
+  // Campos obrigatórios (exigidos pelo schema): name, port, serials,
+  // session_duration_minutes. Tudo o mais é opcional na criação — operador
+  // preenche conforme tem (zenvia, sonicwall, radius). Validações específicas
+  // por modo continuam no handler (radius exige shared_secret pra ser usável).
   fastify.post('/admin/tenants', {
     preHandler: [fastify.authenticate, fastify.requireRole('admin')],
     schema: {
       body: {
         type: 'object',
-        required: ['name', 'port', 'serials', 'zenvia_token', 'zenvia_sender'],
+        required: ['name', 'port', 'serials', 'session_duration_minutes'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 255 },
           port: { type: 'integer', minimum: 29000, maximum: 29999 },
@@ -302,11 +305,8 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           },
           sonicwall_config: {
             type: 'object',
-            // Apenas `mode` é universalmente obrigatório. Os demais campos são
-            // exigidos conforme o modo, e a validação acontece no handler em
-            // validateModeRequirements (ver acima).
-            // Schema opcional pra permitir tenants radius-only (sem sonicwall).
-            required: ['mode'],
+            // Sem `required` — operador pode criar tenant e preencher SW depois.
+            // Quando tem `mode: rest` exige host/user/password (validação no handler).
             properties: {
               mode: { type: 'string', enum: ['rest', 'lhm'] },
               host: { type: 'string' },
@@ -321,11 +321,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           },
           radius_config: {
             type: 'object',
-            // shared_secret é obrigatório em validateRadiusCreate quando auth_mode=radius.
+            // shared_secret obrigatório quando auth_mode=radius (handler valida).
+            // session_timeout_sec NÃO existe mais — usar `session_duration_minutes`
+            // do tenant como fonte única.
             properties: {
               shared_secret: { type: 'string', minLength: 8, maxLength: 256 },
               coa_port: { type: 'integer', minimum: 1, maximum: 65535, default: 3799 },
-              session_timeout_sec: { type: 'integer', minimum: 300, maximum: 86400 },
               nas_ip_allowlist: {
                 type: 'array',
                 items: { type: 'string', maxLength: 64 },
@@ -333,9 +334,9 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
               },
             },
           },
-          zenvia_token: { type: 'string', minLength: 1 },
-          zenvia_sender: { type: 'string', minLength: 1, maxLength: 64 },
-          session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440, default: 480 },
+          zenvia_token: { type: 'string', maxLength: 512 },
+          zenvia_sender: { type: 'string', maxLength: 64 },
+          session_duration_minutes: { type: 'integer', minimum: 15, maximum: 1440 },
           branding: {
             type: 'object',
             properties: {
@@ -356,23 +357,21 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
       serials: TenantSerial[]
       sonicwall_config?: SonicwallConfig
       radius_config?: RadiusConfig
-      zenvia_token: string
-      zenvia_sender: string
-      session_duration_minutes?: number
+      zenvia_token?: string
+      zenvia_sender?: string
+      session_duration_minutes: number
       branding?: { logo_url?: string; primary_color?: string; secondary_color?: string; welcome_text?: string }
     }
 
     const authMode: AuthMode = body.auth_mode ?? 'sonicwall'
 
-    // Validação específica por modo
-    if (authMode === 'sonicwall') {
-      if (!body.sonicwall_config) {
-        return reply.code(422).send({
-          error: 'missing_sonicwall_config',
-          message: 'sonicwall_config é obrigatório quando auth_mode = "sonicwall".',
-          code: 422,
-        })
-      }
+    // Validação por modo:
+    //   sonicwall: sonicwall_config OPCIONAL na criação. Se vier com mode='rest',
+    //              host/user/password ficam exigidos (sem isso o release REST
+    //              não roda — operador pode preencher depois via PUT).
+    //   radius:    shared_secret obrigatório. Sem ele não dá pra subir o
+    //              listener UDP autenticando NAS — não tem como navegar.
+    if (authMode === 'sonicwall' && body.sonicwall_config) {
       const modeError = validateModeRequirements(body.sonicwall_config)
       if (modeError) {
         return reply.code(422).send({
@@ -381,8 +380,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           code: 422,
         })
       }
-    } else {
-      // radius
+    } else if (authMode === 'radius') {
       const radiusError = validateRadiusCreate(body.radius_config)
       if (radiusError) {
         return reply.code(422).send({
@@ -429,14 +427,18 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // 3. Criptografa campos sensíveis
-      // sonicwall_config sempre existe no DB (default '{}'), mas só tem
-      // conteúdo real pra tenants sonicwall. Radius-only salva o objeto vazio
-      // pra não quebrar schema existente.
+      // 3. Criptografa campos sensíveis. Tudo opcional na criação:
+      //    - sonicwall_config: sempre persiste como JSONB. {} se não veio.
+      //    - zenvia_token/sender: criptografa só se vier preenchido. NULL pra
+      //      tenants criados sem zenvia (operador completa depois).
       const swConfigToEncrypt = body.sonicwall_config ?? {}
       const encryptedConfig = encrypt(JSON.stringify(swConfigToEncrypt), encryptionKey)
-      const encryptedZenvia = encrypt(body.zenvia_token, encryptionKey)
-      const encryptedSender = encrypt(body.zenvia_sender, encryptionKey)
+      const encryptedZenvia = body.zenvia_token
+        ? encrypt(body.zenvia_token, encryptionKey)
+        : null
+      const encryptedSender = body.zenvia_sender
+        ? encrypt(body.zenvia_sender, encryptionKey)
+        : null
 
       // 3a. Só pra tenants RADIUS: criptografa radius_config e aloca UDP
       let encryptedRadiusPayload: string | null = null
@@ -508,7 +510,6 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
         authMode === 'radius' && body.radius_config
           ? {
               coa_port: body.radius_config.coa_port,
-              session_timeout_sec: body.radius_config.session_timeout_sec,
               nas_ip_allowlist: body.radius_config.nas_ip_allowlist,
               has_shared_secret: !!body.radius_config.shared_secret,
             }
@@ -639,10 +640,11 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
           },
           radius_config: {
             type: 'object',
+            // session_timeout_sec foi removido — duração da sessão vem só do
+            // `session_duration_minutes` do tenant (1 fonte de verdade).
             properties: {
               shared_secret: { type: 'string', minLength: 8, maxLength: 256 },
               coa_port: { type: 'integer', minimum: 1, maximum: 65535 },
-              session_timeout_sec: { type: 'integer', minimum: 300, maximum: 86400 },
               nas_ip_allowlist: {
                 type: 'array',
                 items: { type: 'string', maxLength: 64 },

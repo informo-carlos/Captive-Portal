@@ -1,18 +1,16 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 
 export interface RadiusFormData {
   shared_secret: string
   coa_port: string
-  session_timeout_sec: string
   nas_ip_allowlist: string[]
 }
 
 export const EMPTY_RADIUS_FORM: RadiusFormData = {
   shared_secret: '',
   coa_port: '3799',
-  session_timeout_sec: '14400',
   nas_ip_allowlist: [],
 }
 
@@ -63,33 +61,11 @@ export function validateRadiusForm(
     return 'Porta CoA deve estar entre 1 e 65535.'
   }
 
-  const timeout = parseInt(form.session_timeout_sec, 10)
-  if (isNaN(timeout) || timeout < 300 || timeout > 86400) {
-    return 'Duração da sessão RADIUS deve estar entre 5 min (300s) e 24h (86400s).'
-  }
-
   for (const entry of form.nas_ip_allowlist) {
     const err = validateIpOrCidr(entry)
     if (err) return err
   }
   return null
-}
-
-function secondsToHHMM(secondsStr: string): string {
-  const total = parseInt(secondsStr, 10)
-  if (isNaN(total) || total < 0) return ''
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
-}
-
-function hhmmToSeconds(hhmm: string): string {
-  const match = hhmm.match(/^(\d{1,2}):(\d{1,2})$/)
-  if (!match) return ''
-  const h = parseInt(match[1], 10)
-  const m = parseInt(match[2], 10)
-  if (isNaN(h) || isNaN(m)) return ''
-  return String(h * 3600 + m * 60)
 }
 
 function generateSharedSecret(): string {
@@ -105,15 +81,6 @@ export function TenantModalRadius({ form, onChange, isEditing, hasExistingSecret
   const [nasError, setNasError] = useState<string | null>(null)
   const [revealSecret, setRevealSecret] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [hhmm, setHhmm] = useState(() => secondsToHHMM(form.session_timeout_sec))
-  const hhmmInitRef = useRef(false)
-
-  useEffect(() => {
-    if (!hhmmInitRef.current) {
-      setHhmm(secondsToHHMM(form.session_timeout_sec))
-      hhmmInitRef.current = true
-    }
-  }, [form.session_timeout_sec])
 
   const addNasEntry = () => {
     const entry = nasInput.trim()
@@ -151,17 +118,6 @@ export function TenantModalRadius({ form, onChange, isEditing, hasExistingSecret
     } catch {
       // clipboard API indisponível — usuário precisará copiar manualmente
     }
-  }
-
-  const handleHhmmChange = (value: string) => {
-    setHhmm(value)
-    const seconds = hhmmToSeconds(value)
-    if (seconds) onChange({ session_timeout_sec: seconds })
-  }
-
-  const handleSecondsChange = (value: string) => {
-    onChange({ session_timeout_sec: value })
-    setHhmm(secondsToHHMM(value))
   }
 
   return (
@@ -222,54 +178,25 @@ export function TenantModalRadius({ form, onChange, isEditing, hasExistingSecret
         </p>
       </div>
 
-      {/* CoA port + session timeout — 2 colunas */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
-            Porta CoA (UDP) <span className="text-t-placeholder normal-case">(default 3799)</span>
-          </label>
-          <input
-            type="number"
-            value={form.coa_port}
-            onChange={(e) => onChange({ coa_port: e.target.value })}
-            min={1}
-            max={65535}
-            className={inputClass('coa_port')}
-            placeholder="3799"
-          />
-          <p className="mt-1 text-[10px] text-t-placeholder">
-            Porta UDP que o NAS escuta Disconnect-Request (RFC 5176).
-          </p>
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
-            Duração da sessão (HH:MM)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={hhmm}
-              onChange={(e) => handleHhmmChange(e.target.value)}
-              pattern="\d{1,2}:\d{2}"
-              placeholder="04:00"
-              className={`${inputClass('session_timeout_sec')} w-24 font-mono`}
-            />
-            <span className="text-[10px] text-t-placeholder">ou</span>
-            <input
-              type="number"
-              value={form.session_timeout_sec}
-              onChange={(e) => handleSecondsChange(e.target.value)}
-              min={300}
-              max={86400}
-              className={`${inputClass()} flex-1`}
-              placeholder="14400"
-            />
-            <span className="text-[10px] text-t-label">seg</span>
-          </div>
-          <p className="mt-1 text-[10px] text-t-placeholder">
-            Vai como Session-Timeout no Access-Accept. Mín 5 min, máx 24h.
-          </p>
-        </div>
+      {/* CoA port — duração da sessão vem de session_duration_minutes do form
+          principal do tenant (1 fonte de verdade pros 2 modos). */}
+      <div>
+        <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
+          Porta CoA (UDP) <span className="text-t-placeholder normal-case">(default 3799)</span>
+        </label>
+        <input
+          type="number"
+          value={form.coa_port}
+          onChange={(e) => onChange({ coa_port: e.target.value })}
+          min={1}
+          max={65535}
+          className={inputClass('coa_port')}
+          placeholder="3799"
+        />
+        <p className="mt-1 text-[10px] text-t-placeholder">
+          Porta UDP que o NAS escuta Disconnect-Request (RFC 5176). A duração da
+          sessão vem do campo <strong>Sessão</strong> do form principal acima.
+        </p>
       </div>
 
       {/* NAS IP allowlist — chips */}
