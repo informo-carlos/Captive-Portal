@@ -111,7 +111,11 @@ export async function fetchPendingTenants(): Promise<PendingTenant[]> {
     radius_config: decryptRadiusConfig(row.radius_config),
     radius_auth_port: row.radius_auth_port,
     radius_acct_port: row.radius_acct_port,
-    zenvia_token: decrypt(row.zenvia_token, config.encryptionKey),
+    // zenvia_token e zenvia_sender são opcionais na criação (fix tenant-fields-optional).
+    // NULL no DB = operador ainda não preencheu. Container sobe com env vazio
+    // — verify-otp falha com erro descritivo quando guest tentar OTP, mas o
+    // container fica funcional (admin pode preencher zenvia depois via PUT).
+    zenvia_token: row.zenvia_token ? decrypt(row.zenvia_token, config.encryptionKey) : '',
     zenvia_sender: row.zenvia_sender ? decrypt(row.zenvia_sender, config.encryptionKey) : '',
     session_duration_minutes: row.session_duration_minutes,
     serials: row.serials,
