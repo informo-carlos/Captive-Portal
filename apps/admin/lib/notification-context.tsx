@@ -57,6 +57,26 @@ function saveActivities(list: Activity[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
 }
 
+/**
+ * Gera um ID curto. Usa crypto.randomUUID() em contextos seguros (HTTPS ou
+ * localhost) e cai num fallback aleatório quando a API não está disponível
+ * (HTTP em IP, alguns embeds, browsers antigos).
+ *
+ * Sem o fallback, criar tenant/user via painel servido em http://IP quebra:
+ * notify() throw TypeError não-ApiRequestError → catch genérico do modal
+ * mostra "Erro inesperado" mesmo o POST tendo dado 201 Created.
+ */
+function generateActivityId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID()
+    } catch {
+      // randomUUID lançou (raro, geralmente em browsers antigos com poliyfill quebrado)
+    }
+  }
+  return `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [activities, setActivities] = useState<Activity[]>([])
 
@@ -65,7 +85,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const add = useCallback((a: Omit<Activity, 'id' | 'read' | 'created_at' | 'completed_at'>): string => {
-    const id = crypto.randomUUID()
+    const id = generateActivityId()
     const newActivity: Activity = {
       ...a,
       id,
