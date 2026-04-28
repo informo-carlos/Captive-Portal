@@ -977,32 +977,63 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // ─── DELETE /admin/tenants/:id ──────────────────────────
+  // Soft-delete do tenant + hard-delete das suas rows em tenant_serials.
+  //
+  // Por que hard-deletar serials num soft-delete: a constraint
+  // uq_tenant_serials_serial é UNIQUE plena (e não pode ser partial — a
+  // info de deleted mora no parent, e Postgres partial indexes não
+  // aceitam subqueries). Sem remover as rows aqui, o serial fica "preso"
+  // pro tenant deletado e não pode ser reusado em outro tenant. Migration
+  // 016 limpou os órfãos existentes; este handler garante que o problema
+  // não acumule de novo.
+  //
+  // Semântica: ao soft-deletar, o serial deixa logicamente de "pertencer"
+  // ao tenant — exatamente o que a hard-delete em tenant_serials reflete.
+  // Histórico de qual serial estava em qual tenant continua disponível
+  // via audit_logs.
   fastify.delete('/admin/tenants/:id', {
     preHandler: [fastify.authenticate, fastify.requireRole('superadmin')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = await fastify.db.query(
-      "UPDATE tenants SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id, name",
-      [id],
-    )
+    const client = await fastify.db.connect()
+    try {
+      await client.query('BEGIN')
 
-    if (result.rows.length === 0) {
-      return reply.code(404).send({
-        error: 'not_found',
-        message: 'Tenant não encontrado.',
-        code: 404,
+      const result = await client.query(
+        "UPDATE tenants SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id, name",
+        [id],
+      )
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return reply.code(404).send({
+          error: 'not_found',
+          message: 'Tenant não encontrado.',
+          code: 404,
+        })
+      }
+
+      // Libera o(s) serial(is) pro reuso em outro tenant.
+      await client.query('DELETE FROM tenant_serials WHERE tenant_id = $1', [id])
+
+      await fastify.logAudit({
+        adminUserId: request.admin.id,
+        action: 'tenant_deleted',
+        payload: { tenant_id: id, name: result.rows[0].name },
+        ipAddress: request.ip,
+        client,
       })
+
+      await client.query('COMMIT')
+
+      return reply.code(200).send({ message: 'Tenant removido com sucesso.' })
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
     }
-
-    await fastify.logAudit({
-      adminUserId: request.admin.id,
-      action: 'tenant_deleted',
-      payload: { tenant_id: id, name: result.rows[0].name },
-      ipAddress: request.ip,
-    })
-
-    return reply.code(200).send({ message: 'Tenant removido com sucesso.' })
   })
 
   // ─── GET /admin/tenants/:id/radius-status ─────────────────────
