@@ -20,11 +20,22 @@ function PhonePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { logoUrl, secondaryColor, welcomeText } = useBranding()
-  // SonicWall TZ570 manda o serial como `ufi` (Unique Firewall Identifier).
-  // Aceitamos ambos os nomes pra cobrir diferenças entre firmwares.
-  const serial = searchParams.get('serial') || searchParams.get('ufi') || ''
-  const mac = searchParams.get('mac') || ''
-  const ip = searchParams.get('ip') || ''
+  // SonicOS 7.x (TZ 370) injeta no redirect do Captive Portal:
+  //   ?userMAC=...&userIP=...&UFI=<serial>&mgmtUrl=...&REQ=...
+  // SonicOS 6.x / outras integrações usam: ?serial=&mac=&ip=
+  // Aceitamos os dois esquemas + lookup case-insensitive.
+  const getParam = (...names: string[]): string => {
+    const lower = new Map<string, string>()
+    searchParams.forEach((v, k) => lower.set(k.toLowerCase(), v))
+    for (const n of names) {
+      const v = lower.get(n.toLowerCase())
+      if (v) return v
+    }
+    return ''
+  }
+  const serial = getParam('serial', 'UFI', 'ufi')
+  const mac = getParam('mac', 'userMAC')
+  const ip = getParam('ip', 'userIP')
   // Captura quaisquer params extras injetados pelo SonicWall no modo LHM
   // (sessionId, mgmtBaseUrl, ufi, etc) — variam por firmware.
   // useMemo pra estabilizar a referência (evita recriar o useCallback toda render).
