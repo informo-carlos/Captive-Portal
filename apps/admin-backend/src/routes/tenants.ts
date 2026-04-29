@@ -226,9 +226,12 @@ const tenantRoutes: FastifyPluginAsync = async (fastify) => {
     // Fetch tenants com seriais e sessions_count
     const dataParams = [...params, limit, offset]
     const result = await fastify.db.query(
-      `SELECT t.id, t.name, t.port, t.status, t.sonicwall_config, t.zenvia_token,
-              t.zenvia_sender, t.provisioning_error, t.container_id, t.provisioned_at,
-              t.session_duration_minutes, t.branding, t.created_at, t.updated_at,
+      `SELECT t.id, t.name, t.port, t.status, t.auth_mode,
+              t.sonicwall_config, t.radius_config,
+              t.radius_auth_port, t.radius_acct_port,
+              t.zenvia_token, t.zenvia_sender, t.provisioning_error, t.container_id,
+              t.provisioned_at, t.session_duration_minutes, t.branding,
+              t.created_at, t.updated_at,
               COALESCE(
                 (SELECT json_agg(json_build_object('id', ts.id, 'serial', ts.serial, 'role', ts.role))
                  FROM tenant_serials ts WHERE ts.tenant_id = t.id), '[]'
