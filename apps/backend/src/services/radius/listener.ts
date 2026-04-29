@@ -130,11 +130,57 @@ async function handleAccessRequest(ctx: HandlerContext): Promise<void> {
     packet = radius.decode({ packet: rawPacket, secret: config.sharedSecret }) as RadiusPacket
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    // NUNCA logar o secret. Só o fato de que o secret não bate.
-    logger.warn(
-      { nasIp: rinfo.address, nasPort: rinfo.port, reason: msg },
-      'radius_bad_secret',
+
+    // Fallback: tentar decodificar sem validação de secret para distinguir
+    // entre "probe legítimo com User-Password malformado" e "secret errado".
+    // RFC 2865 §3 — drop silencioso é correto para secret inválido (evita
+    // oráculo de ataque). Mas o heartbeat do SonicWall envia User-Password
+    // com length 2 (abaixo do mínimo de 16 bytes do RFC) e precisa receber
+    // Access-Reject para marcar o servidor como UP.
+    let fallbackPacket: RadiusPacket | null = null
+    try {
+      fallbackPacket = radius.decode_without_secret({ packet: rawPacket }) as RadiusPacket
+    } catch {
+      // Pacote totalmente corrompido — drop silencioso.
+      logger.warn(
+        { nasIp: rinfo.address, nasPort: rinfo.port, reason: msg },
+        'radius_corrupt_packet',
+      )
+      return
+    }
+
+    // Só tratamos Access-Request no fallback — outros códigos caem em drop.
+    if (fallbackPacket.code !== 'Access-Request') {
+      logger.warn(
+        { nasIp: rinfo.address, nasPort: rinfo.port, reason: msg },
+        'radius_bad_secret',
+      )
+      return
+    }
+
+    const fallbackUserName = fallbackPacket.attributes['User-Name']
+    const isLikelyMac =
+      typeof fallbackUserName === 'string' &&
+      normalizeMac(fallbackUserName).length === 12
+
+    if (isLikelyMac) {
+      // User-Name parece ser um MAC mas o decode com secret falhou →
+      // possível secret errado ou pacote forjado. Drop silencioso (RFC 2865 §3).
+      logger.warn(
+        { nasIp: rinfo.address, nasPort: rinfo.port, reason: msg },
+        'radius_bad_secret',
+      )
+      return
+    }
+
+    // User-Name não é um MAC (ex: "status-check" — probe do SonicWall).
+    // Responde Access-Reject para provar ao firewall que o servidor está vivo.
+    // Não revela nada sensível: nenhum dado de sessão ou secret é exposto.
+    logger.info(
+      { nasIp: rinfo.address, identifier: fallbackPacket.identifier, userName: fallbackUserName },
+      'radius_probe_rejected',
     )
+    sendReject(socket, rinfo, fallbackPacket, config.sharedSecret, 'probe-or-invalid-user', logger)
     return
   }
 
