@@ -14,10 +14,14 @@ export default fp(async function serialGuardPlugin(fastify: FastifyInstance) {
     // Health check e branding não exigem serial
     if (request.url === '/health' || request.url === '/branding') return
 
-    // Precedência: header > query param (conforme spec)
+    // Precedência: header > query param `serial` > query param `UFI`.
+    // SonicOS 7.x manda o serial como `UFI` (Unique Firewall Identifier)
+    // no redirect do Captive Portal — aceitamos os dois nomes.
+    const query = request.query as Record<string, string | undefined>
     const serial =
       (request.headers['x-sonicwall-serial'] as string | undefined) ??
-      (request.query as Record<string, string>)['serial']
+      query['serial'] ??
+      query['UFI']
 
     if (!serial || !allowedSerials.includes(serial)) {
       request.log.warn(

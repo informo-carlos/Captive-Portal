@@ -41,16 +41,19 @@ Executa em TODAS as rotas antes de qualquer handler.
 ### Como funciona
 
 O SonicWall injeta o serial no redirect via query param ou header.
-O middleware lê `X-Sonicwall-Serial` (header) OU `?serial=` (query param).
+O middleware lê `X-Sonicwall-Serial` (header) OU `?serial=` (query param) OU `?UFI=` (alias enviado pelo SonicOS 7.x no redirect do Captive Portal — *Unique Firewall Identifier*).
 
 ```
-Precedência: header > query param
+Precedência: header > query.serial > query.UFI
 ```
 
 ### Lógica
 
 ```
-serial_recebido = req.headers['x-sonicwall-serial'] ?? req.query.serial
+serial_recebido =
+  req.headers['x-sonicwall-serial'] ??
+  req.query.serial ??
+  req.query.UFI
 
 se serial_recebido está em ALLOWED_SERIALS (split por vírgula):
   req.tenantId = TENANT_ID do env
