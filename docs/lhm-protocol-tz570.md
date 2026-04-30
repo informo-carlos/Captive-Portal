@@ -1,5 +1,10 @@
 # Protocolo LHM / External Guest Authentication — SonicWall TZ 570
 
+> ⚠️ Esse documento descreve o protocolo CGI antigo (SonicOS <= 7.2).
+> No SonicOS 7.3.2+, o endpoint mudou pra REST `/lhmapi/externalAAAGuest`.
+> Veja [sonicwall-integration-findings.md](sonicwall-integration-findings.md)
+> e [guestLHMLogin.php](guestLHMLogin.php) pro protocolo atual.
+
 > Documento de referência pra integração do portal captivo com o modo
 > "External Guest Authentication" do SonicWall via LHM.
 
