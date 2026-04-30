@@ -20,18 +20,33 @@ export interface ReleaseAccessParams {
   lhmParams?: Record<string, string>
 }
 
+export interface LhmPostInstruction {
+  url: string
+  payload: Record<string, unknown>
+  /**
+   * URL original que o usuário tentou acessar (param `req` do redirect
+   * inicial). O frontend redireciona pra cá após o POST ao firewall.
+   */
+  reqUrl?: string
+}
+
 export interface ReleaseAccessResult {
   success: boolean
   raw: unknown
   mode: 'rest' | 'lhm'
   /**
-   * Quando preenchido, o frontend deve redirecionar o navegador do usuário
-   * pra essa URL (em vez de mostrar "acesso liberado"). É o caminho do LHM:
-   * o próprio browser do usuário, dentro da rede do cliente, fala com o
-   * gateway local e confirma a autenticação. A nossa VPS NUNCA toca no
-   * SonicWall do cliente.
+   * @deprecated Mantido só pra compat — em LHM 7.3+ use lhmPost.
+   * URL pra qual o navegador devia redirecionar (protocolo CGI antigo,
+   * SonicOS <= 7.2).
    */
   redirectUrl?: string
+  /**
+   * Quando preenchido, o frontend deve fazer POST cross-origin pro firewall
+   * e depois redirecionar o navegador pra reqUrl (ou /success).
+   * É o caminho do LHM 7.3+: browser do usuário (na LAN do cliente) envia
+   * o JSON diretamente pro gateway — nossa VPS NUNCA toca no SonicWall.
+   */
+  lhmPost?: LhmPostInstruction
 }
 
 export interface SonicwallConfig {

@@ -1,41 +1,26 @@
 // LHM — Lightweight Hotspot Messaging / External Guest Authentication
 //
-// Protocolo (mapeado a partir da KB SonicWall + django-sonicwall + LHM FAQ):
+// Protocolo SonicOS 7.3.2+ (REST /lhmapi/externalAAAGuest):
 //
 //   1. Cliente conecta ao SSID com External Guest Auth habilitado.
 //   2. SonicWall intercepta HTTP e redireciona pro nosso portal injetando:
 //        sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
 //   3. Capturamos esses params no frontend e enviamos no request-otp.
 //      Backend guarda em Redis junto com o OTP.
-//   4. Após verify-otp OK, esta função MONTA a URL de retorno:
-//        ${mgmtBaseUrl}externalGuestLogin.cgi?sessId=...&userName=<mac>
-//          &sessionLifetime=<sec>&idleTimeout=<sec>
-//   5. Devolve essa URL no `redirectUrl`. O frontend faz `window.location`
-//      pra ela. Como o navegador do usuário está DENTRO da rede do cliente,
-//      ele alcança o gateway local — nossa VPS NUNCA toca no SonicWall.
-//   6. SonicWall valida o sessId, libera o acesso e redireciona o usuário
-//      pro `req` original.
+//   4. Após verify-otp OK, esta função MONTA a instrução de POST:
+//        url:     ${mgmtBaseUrl}lhmapi/externalAAAGuest
+//        payload: { info: { action: 1, sessId, userName, sessionLifetime, ... } }
+//   5. Devolve `lhmPost` no resultado. O frontend faz fetch no-cors pro
+//      firewall — como o navegador do usuário está DENTRO da rede do cliente,
+//      ele alcança o gateway local. A nossa VPS NUNCA toca no SonicWall.
+//   6. SonicWall valida o sessId, libera o acesso e o frontend redireciona
+//      pra `reqUrl` (URL original) ou /success.
 //
-// Ver: docs/lhm-protocol-tz570.md
+// Referência: docs/guestLHMLogin.php (fornecido pela SonicWall)
+// Ver também: docs/lhm-protocol-tz570.md (protocolo CGI antigo, <= 7.2)
 
 import type { FastifyBaseLogger } from 'fastify'
 import type { ReleaseAccessParams, ReleaseAccessResult, SonicwallConfig } from './index'
-
-/**
- * Nomes dos query params que SonicWalls em modo External Guest Auth injetam
- * no redirect inicial. Capturamos qualquer um que vier — só sessionId e
- * mgmtBaseUrl são obrigatórios.
- */
-export const KNOWN_LHM_PARAM_NAMES = [
-  'sessionId',
-  'ip',
-  'mac',
-  'ufi',
-  'mgmtBaseUrl',
-  'clientRedirectUrl',
-  'req',
-  'cc',
-] as const
 
 /** Limite do path do mgmtBaseUrl pra evitar SSRF/abuso. */
 const MAX_MGMT_BASE_URL_LENGTH = 512
@@ -54,23 +39,6 @@ function isValidMgmtBaseUrl(raw: string): boolean {
   return true
 }
 
-function buildExternalGuestLoginUrl(
-  mgmtBaseUrl: string,
-  sessionId: string,
-  userName: string,
-  sessionLifetimeSec: number,
-  idleTimeoutSec: number,
-): string {
-  // Garante que mgmtBaseUrl termina com `/` antes de concatenar
-  const base = mgmtBaseUrl.endsWith('/') ? mgmtBaseUrl : `${mgmtBaseUrl}/`
-  const url = new URL('externalGuestLogin.cgi', base)
-  url.searchParams.set('sessId', sessionId)
-  url.searchParams.set('userName', userName)
-  url.searchParams.set('sessionLifetime', String(sessionLifetimeSec))
-  url.searchParams.set('idleTimeout', String(idleTimeoutSec))
-  return url.toString()
-}
-
 export async function releaseAccessLhm(
   params: ReleaseAccessParams,
   _config: SonicwallConfig,
@@ -79,6 +47,7 @@ export async function releaseAccessLhm(
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
   const mgmtBaseUrl = lhm['mgmtBaseUrl']
+  const reqUrl = lhm['req'] // URL original que o usuário tentou acessar
 
   // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
   // sem passar pelo SonicWall (ex: digitou o IP direto).
@@ -111,39 +80,73 @@ export async function releaseAccessLhm(
     }
   }
 
-  // sessionLifetime e idleTimeout em segundos.
-  // sessionMinutes vem do tenant; idleTimeout fixo em 30min (default razoável).
+  // sessionLifetime em segundos — vem de tenants.session_duration_minutes.
+  // Todos os valores são strings (conforme guestLHMLogin.php da SonicWall).
   const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
-  const idleTimeoutSec = 30 * 60
+  const sessionLifetimeStr = String(sessionLifetimeSec)
 
-  const redirectUrl = buildExternalGuestLoginUrl(
-    mgmtBaseUrl,
-    sessionId,
-    params.mac, // SonicWall aceita o MAC como userName
-    sessionLifetimeSec,
-    idleTimeoutSec,
-  )
+  // Normaliza o MAC: uppercase sem separadores (ex: 000E35BDC937).
+  // O SonicWall usa o MAC como userName no log interno.
+  const userName = params.mac.replace(/[:\-]/g, '').toUpperCase()
+
+  // Monta a URL do endpoint REST do SonicOS 7.3.2+
+  const base = mgmtBaseUrl.endsWith('/') ? mgmtBaseUrl : mgmtBaseUrl + '/'
+  const postUrl = base + 'lhmapi/externalAAAGuest'
+
+  // Monta o body JSON seguindo guestLHMLogin.php (linhas 155-175).
+  // Todos os valores numéricos são strings — o parser do firmware é tolerante
+  // mas o PHP de referência usa strings, então mantemos o mesmo padrão.
+  //
+  // TODO (Phase 2 — HMAC): Se o tenant tiver `hmacKey` configurado, calcular:
+  //   const text = sessionId + urlencode(userName) + sessionLifetimeStr +
+  //                idleTimeout + maxRx + maxTx + quotaCycleType +
+  //                cycleSessionLifeTime + cycleMaxRx + cycleMaxTx
+  //   const lhmHmac = createHmac('sha256', hmacKey).update(text).digest('hex')
+  //   payload.info.hmac = lhmHmac
+  //
+  // O firmware padrão NÃO exige HMAC — Phase 1/2 só rodam se o SonicWall
+  // foi configurado com "HMAC Authentication" e o redirect inicial vier com
+  // ?hmac= preenchido (veja guestLHMLogin.php linhas 39-76 e 130-150).
+  // Nosso serial-guard já valida o serial do firewall, então não precisamos
+  // da Phase 1 (validação do redirect entrante).
+  const payload: Record<string, unknown> = {
+    info: {
+      action: 1,
+      sessId: sessionId,
+      userName,
+      sessionLifetime: sessionLifetimeStr,
+      idleTimeout: '1800',
+      maxRx: '0',
+      maxTx: '0',
+      quotaCycleType: '0',
+      cycleSessionLifeTime: sessionLifetimeStr,
+      cycleMaxRx: '0',
+      cycleMaxTx: '0',
+    },
+  }
 
   logger.info(
     {
-      lhmKeys: Object.keys(lhm),
+      postUrl,
+      sessIdPresent: !!sessionId,
       sessionLifetimeSec,
-      idleTimeoutSec,
+      hasReqUrl: !!reqUrl,
     },
-    'lhm_redirect_built',
+    'lhm_post_built',
   )
 
   return {
     success: true,
     raw: {
-      protocol: 'lhm',
+      protocol: 'lhm_rest',
       sessionLifetimeSec,
-      idleTimeoutSec,
-      // Não logamos sessionId/mgmtBaseUrl aqui — vão pro DB criptografado/raw
-      // só com as keys presentes.
       lhmKeys: Object.keys(lhm),
     },
     mode: 'lhm',
-    redirectUrl,
+    lhmPost: {
+      url: postUrl,
+      payload,
+      reqUrl: reqUrl || undefined,
+    },
   }
 }

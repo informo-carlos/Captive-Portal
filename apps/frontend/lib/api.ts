@@ -104,11 +104,20 @@ export interface VerifyOtpResponse {
   message: string
   expires_in: number
   /**
-   * Em modo LHM, o backend devolve uma URL pra qual o navegador deve ser
-   * redirecionado — é o gateway local do SonicWall confirmando a auth.
-   * Em modo REST/stub esse campo vem vazio e a UI mostra a tela de sucesso.
+   * @deprecated Protocolo CGI antigo (SonicOS <= 7.2). Mantido pra compat.
+   * Em LHM 7.3+ use lhm_post.
    */
   redirect_url?: string
+  /**
+   * Em LHM 7.3+ (SonicOS >= 7.3.2), o backend devolve as instruções de POST
+   * que o frontend deve executar cross-origin via fetch no-cors. Após o POST
+   * o browser redireciona pra req_url (ou /success se não houver).
+   */
+  lhm_post?: {
+    url: string
+    payload: Record<string, unknown>
+    req_url?: string
+  }
 }
 
 export function verifyOtp(
