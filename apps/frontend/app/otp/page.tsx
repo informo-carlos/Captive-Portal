@@ -7,6 +7,7 @@ import CountdownTimer from '../../components/CountdownTimer'
 import { useBranding } from '../../components/BrandingProvider'
 import { ApiRequestError, requestOtp, verifyOtp } from '../../lib/api'
 import { deserializeLhmParams, isValidLhmRedirectUrl } from '../../lib/lhm-params'
+import { postToFirewall } from '../../lib/lhm-post'
 
 export default function OtpPageWrapper() {
   return (
@@ -93,8 +94,25 @@ function OtpPage() {
 
     try {
       const result = await verifyOtp({ phone, otp }, serial)
-      // Em modo LHM o backend devolve uma URL do gateway SonicWall — o navegador
-      // do usuário precisa ir até ela pra confirmar a auth no firewall.
+
+      // LHM 7.3+ (SonicOS >= 7.3.2): backend monta instrução de POST ao
+      // firewall. O browser do usuário (na LAN do cliente) executa o fetch
+      // no-cors e depois redireciona pra URL original ou /success.
+      if (result.lhm_post) {
+        await postToFirewall(result.lhm_post)
+        // POST é fire-and-forget (no-cors) — não dá pra ler a resposta.
+        // Aguarda 2s pra dar tempo do firewall processar e então redireciona.
+        await new Promise((r) => setTimeout(r, 2000))
+        if (result.lhm_post.req_url) {
+          window.location.href = result.lhm_post.req_url
+        } else {
+          router.push(`/success?serial=${serial}&expires_in=${result.expires_in}`)
+        }
+        return
+      }
+
+      // Fallback: protocolo CGI antigo (SonicOS <= 7.2) — será removido após
+      // confirmarmos 100% da migração pra LHM 7.3 em produção.
       // Validamos o formato (https + path /externalGuestLogin.cgi) pra mitigar
       // open redirect caso o backend devolva qualquer coisa estranha.
       if (result.redirect_url) {
@@ -106,6 +124,7 @@ function OtpPage() {
         // eslint-disable-next-line no-console
         console.warn('redirect_url inválido recebido do backend, ignorando')
       }
+
       const expiresIn = result.expires_in
       router.push(`/success?serial=${serial}&expires_in=${expiresIn}`)
     } catch (err) {
