@@ -83,41 +83,135 @@
 
 **Histórico:** 24 commits `fix(lhm): …` em PRs #17 e #19 + WIP `4c5d8e7`.
 
-**Resumo das tentativas:**
-1. POST backend-side direto pro `externalGuestLogin.cgi` — endpoint
-   removido/alterado no 7.3.2
-2. Tentativa no endpoint novo `lhmapi/externalGuest` (REST) — 7.3.2+
-3. Browser-side POST do navegador do cliente (que está na LAN do firewall) —
-   esbarra em CORS preflight quando o firewall responde com cert self-signed
-4. Estratégias de bypass: top-level form POST, no-cors fetch com `text/plain`,
-   fire-and-forget, shotgun em todos os candidatos
-5. Último estado conhecido: WIP, antes de sync com develop
+**Sintoma observado em produção:**
+> Após o usuário digitar o OTP correto e a tela de "acesso autorizado"
+> aparecer, o navegador é redirecionado de volta pra tela inicial (input
+> de nome+telefone) — entrando em **loop infinito**. O usuário nunca
+> chega a navegar.
 
-**O QUE TRAVOU — preencher quando confirmar com o time:**
+**Causa raiz (descoberta via referência oficial SonicWall):**
 
-> _(Pendente: o usuário vai detalhar qual foi o erro exato — CORS? endpoint
-> 404? POST chega mas firewall ignora? Resposta vazia?)_
+O código atual em [`apps/backend/src/services/sonicwall/lhm.ts`](../apps/backend/src/services/sonicwall/lhm.ts)
+monta a URL de autorização no formato antigo:
+
+```
+${mgmtBaseUrl}externalGuestLogin.cgi?sessId=...&userName=...
+```
+
+Esse CGI **foi descontinuado no SonicOS 7.3.2**. O endpoint atual é REST
+e exige POST com body JSON, conforme `docs/guestLHMLogin.php` enviado
+pelo suporte SonicWall:
+
+```
+POST ${mgmtBaseUrl}/lhmapi/externalAAAGuest
+Content-Type: application/json
+
+{
+  "info": {
+    "action": 1,
+    "sessId": "<sessionId do redirect inicial>",
+    "userName": "<MAC ou username>",
+    "sessionLifetime": 7200,
+    "idleTimeout": 300,
+    "maxRx": 0, "maxTx": 0,
+    "quotaCycleType": 0,
+    "cycleSessionLifeTime": 7200,
+    "cycleMaxRx": 0, "cycleMaxTx": 0,
+    "hmac": "<sha256 opcional, ver phase2 abaixo>"
+  }
+}
+```
+
+Resposta de sucesso: `{"code": "50"}`. Qualquer outro código → falha
+silenciosa: navegador volta a hit do captive portal → redirect pra
+home → **loop**.
+
+**HMAC (opcional, ativo se firewall configurado com shared key):**
+
+- Algoritmo: `sha256`
+- Key: shared secret configurado em `Network → Wireless → Guest Services →
+  Authentication Settings → HMAC Key`
+- **Phase 1** (validação do `?hmac=` que o firewall manda no redirect inicial):
+  ```
+  text = ssid + sessionId + ip + mac + ufi + mgmtBaseUrl + clientRedirectUrl + reqEncoded
+  hmac = HMAC-SHA256(key, text)
+  ```
+  onde `reqEncoded` aplica o duplo-encode específico
+  (`%`→`%25`, depois `:`→`%3A`, ` `→`%20`, `?`→`%3F`, `+`→`%2B`,
+  `&`→`%26`, `=`→`%3D`).
+- **Phase 2** (HMAC do POST que o nosso server envia):
+  ```
+  text = sessionId + urlencode(userName) + sessionLifetime + idleTimeout
+       + maxRx + maxTx + quotaCycleType + cycleSessionLifeTime
+       + cycleMaxRx + cycleMaxTx
+  hmac = HMAC-SHA256(key, text)
+  ```
+
+**Tentativas anteriores que NÃO resolveram (e por quê):**
+
+1. **POST backend-side direto** pro CGI antigo — endpoint não existe mais no 7.3.2
+2. **Tentativa no endpoint REST `lhmapi/externalGuest`** (sem `AAA`) — nome
+   incorreto. O correto é `lhmapi/externalAAAGuest`
+3. **Browser-side POST** do navegador do cliente — esbarra em CORS preflight
+   porque `Content-Type: application/json` é "non-simple", e o firewall
+   responde com cert self-signed que browsers móveis bloqueiam por padrão
+4. **Bypass de CORS** com `no-cors fetch + text/plain` carregando JSON,
+   top-level form POST, fire-and-forget — chamadas chegam mas não conseguem
+   ler a resposta `{"code": "50"}`, e o body com `text/plain` provavelmente
+   é rejeitado pelo firewall que espera `application/json` exato
+5. **Último estado:** snapshot WIP `4c5d8e7`, branch `fix/lhm-debug-log`
+
+**Material de referência oficial recém-recebido (2026-04-30):**
+- `docs/REST API for External Guest Authentication.pdf` — doc oficial da SonicWall
+- `docs/guestLHMLogin.php` — exemplo funcional que mostra exatamente o protocolo correto
+- `docs/guestLHMLogout.php`, `docs/guestLHMUpdateSess.php`, `docs/createGuestAccount.php`
+
+**Caminho recomendado pra retomar:**
+
+1. Reescrever `apps/backend/src/services/sonicwall/lhm.ts` pra:
+   - Usar endpoint `${mgmtBaseUrl}/lhmapi/externalAAAGuest`
+   - Montar body JSON com wrapper `{"info": {...}}`
+   - Suportar HMAC opcional (Phase 1 + Phase 2)
+2. **Importante:** se a VPS continuar **sem rota direta** pro firewall na LAN,
+   o POST tem que sair do navegador. Pra esse caminho:
+   - Tentar `Content-Type: application/x-www-form-urlencoded` com body como
+     campo `payload=<json>` (CORS simple request, sem preflight)
+   - **OU** servir uma página HTML que faz `fetch` de mesmo origin (HTTPS
+     captive portal contra HTTP/HTTPS firewall) — depende de browser
+   - **OU** o usuário aceitar o cert self-signed do firewall numa página
+     intermediária antes do POST
+3. Se a VPS tiver rota pro firewall (VPN site-to-site, peering), o caminho
+   ideal é POST backend-side (igual o PHP de referência) — sem mexer no browser.
 
 **Arquivos relevantes:**
 - `apps/backend/src/services/sonicwall/lhm.ts`
 - `apps/frontend/lib/lhm-params.ts`
-- `docs/lhm-protocol-tz570.md` (spec do protocolo)
+- `docs/lhm-protocol-tz570.md` (spec do protocolo — desatualizada, precisa de revisão à luz do PDF oficial)
+- `docs/guestLHMLogin.php` ⭐ (referência canônica)
+- `docs/REST API for External Guest Authentication.pdf` ⭐ (doc oficial)
 
 ---
 
 ## Caminhos possíveis daqui
 
-### A. Retomar LHM com diagnóstico fechado
+### A. ⭐ Retomar LHM com endpoint correto (recomendado)
 
-Voltar pra branch da investigação LHM (`fix/lhm-debug-log` /
-commits `c7f7eeb`, `3230736`, `50c99a5`), reproduzir o último cenário
-contra o TZ 370 atual e capturar exatamente onde a chamada do navegador
-falha. Possíveis trabalhos:
+Agora que temos o protocolo oficial confirmado via `guestLHMLogin.php`,
+reescrever `lhm.ts` pra:
 
-- Confirmar qual é o endpoint correto no 7.3.2 (CGI vs REST `lhmapi`)
-- Se for CORS/cert: aceitar o cert self-signed do firewall no navegador antes,
-  ou intermediar via página HTTP servida pelo próprio firewall
-- Se for endpoint novo: ler resposta JSON e tratar adequadamente
+- Endpoint: `${mgmtBaseUrl}/lhmapi/externalAAAGuest`
+- POST JSON `{"info": {action: 1, sessId, userName, sessionLifetime, ...}}`
+- HMAC SHA256 nas duas fases (se firewall configurado)
+- Tratar resposta `{"code": "50"}` = sucesso
+
+Sub-questão pendente: o POST sai do **backend** (precisa rota pro firewall
+LAN — VPN site-to-site) ou do **navegador do cliente** (sem rota da VPS,
+mas esbarra em CORS+cert self-signed)? **Validar conforme topologia real
+de cada cliente.**
+
+A solução do PHP oficial usa POST backend-side. Se replicarmos isso,
+precisamos de túnel VPN/wireguard entre VPS e a LAN do firewall — ou
+hospedar uma instância do backend na LAN do cliente (modo on-prem).
 
 ### B. SonicOS REST API com auth-aware bypass de captive portal
 
@@ -177,6 +271,26 @@ similar.
 | — | `radius_coa_skipped_no_nas_ip` | (não-PR) constatado em produção, motivo do "degraded" no verify-otp |
 
 ---
+
+## RADIUS funciona em outros vendors?
+
+**Sim — o problema é específico do SonicWave.** A arquitetura
+RADIUS+MAB+CoA do projeto (validada na spec `docs/spec-radius-auth.md`)
+funciona em controladoras/APs enterprise que implementam o ciclo
+"MAB-Reject → Captive Portal redirect → CoA-Disconnect → re-MAB → Accept":
+
+| Vendor | Suporte | Recurso correspondente |
+|---|---|---|
+| **Mikrotik** (CHR/RouterOS) | ✅ | `walled garden` + `radius` + `coa` |
+| **Ubiquiti UniFi** | ✅ | "Pre-shared / RADIUS MAC Auth" + Captive Portal externo |
+| **pfSense / OPNsense** | ✅ | Captive portal com RADIUS + Disconnect-Request |
+| **Cisco ISE / WLC** | ✅ | MAB nativo, padrão de mercado |
+| **Aruba ClearPass + Instant** | ✅ | Suporte completo a CoA dinâmico |
+| **SonicWall + SonicWave (TZ 370 / 7.3.2)** | ❌ | AP rejeita associação no Reject |
+
+Em outras palavras: **a stack do projeto está correta** — só não casa
+com esse hardware específico. Para clientes com SonicWall, **LHM é o
+caminho oficial** (e era o que o projeto fazia originalmente).
 
 ## Próximos passos sugeridos
 
