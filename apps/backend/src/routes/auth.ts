@@ -239,6 +239,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       message: string
       expires_in: number
       redirect_url?: string
+      lhm_post?: {
+        url: string
+        payload: Record<string, unknown>
+        req_url?: string
+      }
       release_status?: 'active' | 'degraded'
     }
 
@@ -350,7 +355,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         message: 'Acesso liberado. Você já pode navegar.',
         expires_in: sessionMinutes * 60,
       }
-      if (swResult.redirectUrl) {
+      if (swResult.lhmPost) {
+        responseBody.lhm_post = {
+          url: swResult.lhmPost.url,
+          payload: swResult.lhmPost.payload,
+          req_url: swResult.lhmPost.reqUrl,
+        }
+      } else if (swResult.redirectUrl) {
+        // Compat: protocolo CGI antigo (SonicOS <= 7.2) — manter enquanto
+        // não confirmarmos 100% da migração pra LHM 7.3 em produção.
         responseBody.redirect_url = swResult.redirectUrl
       }
     }
