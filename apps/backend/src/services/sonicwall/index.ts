@@ -18,6 +18,13 @@ export interface ReleaseAccessParams {
    * como dicionário pra não acoplar ao formato.
    */
   lhmParams?: Record<string, string>
+  /**
+   * Override de mgmtBaseUrl. Útil quando o SonicWall só envia o IP público
+   * no redirect mas queremos forçar o IP LAN (evita hairpin NAT).
+   * Lido pelo handler de verify-otp via Redis (chave `lhm:mgmt_override:<tenantId>`).
+   * Formato: URL completa (ex: `https://10.212.200.250:4443/`).
+   */
+  lhmMgmtUrlOverride?: string
 }
 
 export interface LhmPostInstruction {

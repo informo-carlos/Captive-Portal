@@ -196,4 +196,30 @@ describe('releaseAccessLhm', () => {
     expect(result.success).toBe(true)
     expect(result.lhmPost?.url).toBe('https://168.181.151.214:4043/lhmapi/externalAAAGuest')
   })
+
+  it('lhmMgmtUrlOverride tem precedência sobre o que o SonicWall mandou', async () => {
+    const params = makeParams({
+      lhmMgmtUrlOverride: 'https://10.212.200.250:4443/',
+      lhmParams: {
+        sessionId: 'abc123',
+        mgmtBaseUrl: 'https://168.181.151.214:4043/', // SonicWall só mandou o público
+      },
+    })
+    const result = await releaseAccessLhm(params, stubConfig, logger)
+    expect(result.success).toBe(true)
+    expect(result.lhmPost?.url).toBe('https://10.212.200.250:4443/lhmapi/externalAAAGuest')
+  })
+
+  it('lhmMgmtUrlOverride inválido cai pro pickMgmtBaseUrl normal', async () => {
+    const params = makeParams({
+      lhmMgmtUrlOverride: 'nao-e-uma-url',
+      lhmParams: {
+        sessionId: 'abc123',
+        mgmtBaseUrl: 'https://168.181.151.214:4043/',
+      },
+    })
+    const result = await releaseAccessLhm(params, stubConfig, logger)
+    expect(result.success).toBe(true)
+    expect(result.lhmPost?.url).toBe('https://168.181.151.214:4043/lhmapi/externalAAAGuest')
+  })
 })
