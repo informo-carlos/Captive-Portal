@@ -311,6 +311,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     } else {
       // 8b — Strategy SonicWall (REST/LHM, caminho legacy).
+      // Lê override opcional de mgmt URL (Redis). Útil quando SonicWall manda
+      // só o IP público no redirect e queremos forçar o IP LAN.
+      // Setar via: redis-cli SET lhm:mgmt_override:<tenantId> 'https://...:4443/'
+      // Remover via: redis-cli DEL lhm:mgmt_override:<tenantId>
+      const lhmMgmtUrlOverride =
+        (await fastify.redis.get(`lhm:mgmt_override:${request.tenantId}`)) ?? undefined
+
       const swResult = await releaseAccess(
         {
           mac: stored.mac,
@@ -318,6 +325,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           phone: phoneE164,
           sessionMinutes,
           lhmParams: stored.lhmParams,
+          lhmMgmtUrlOverride,
         },
         fastify.config.sonicwall,
         request.log,

@@ -79,7 +79,12 @@ export async function releaseAccessLhm(
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
-  const mgmtBaseUrl = pickMgmtBaseUrl(lhm)
+  // Override (Redis) tem precedência absoluta — útil pra forçar IP LAN quando
+  // o SonicWall só envia o público no redirect (evita hairpin NAT).
+  const overrideUrl = params.lhmMgmtUrlOverride
+  const mgmtBaseUrl =
+    (overrideUrl && isValidMgmtBaseUrl(overrideUrl) ? overrideUrl : undefined) ??
+    pickMgmtBaseUrl(lhm)
   const reqUrl = lhm['req'] // URL original que o usuário tentou acessar
 
   // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
@@ -151,6 +156,7 @@ export async function releaseAccessLhm(
   logger.info(
     {
       postUrl,
+      usedOverride: !!overrideUrl,
       mgmtIsPrivate: isPrivateIp(new URL(mgmtBaseUrl).hostname),
       receivedMgmtUrl: !!lhm['mgmtUrl'],
       receivedMgmtBaseUrl: !!lhm['mgmtBaseUrl'],
