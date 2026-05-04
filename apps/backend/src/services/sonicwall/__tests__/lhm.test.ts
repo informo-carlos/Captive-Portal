@@ -78,7 +78,8 @@ describe('releaseAccessLhm', () => {
     })
     const result = await releaseAccessLhm(params, stubConfig, logger)
     expect(result.success).toBe(false)
-    expect((result.raw as Record<string, unknown>).error).toBe('invalid_mgmt_base_url')
+    // pickMgmtBaseUrl filtra URLs inválidas, então caem em missing_lhm_params
+    expect((result.raw as Record<string, unknown>).error).toBe('missing_lhm_params')
   })
 
   it('retorna success: false para mgmtBaseUrl sem protocolo válido', async () => {
@@ -87,7 +88,8 @@ describe('releaseAccessLhm', () => {
     })
     const result = await releaseAccessLhm(params, stubConfig, logger)
     expect(result.success).toBe(false)
-    expect((result.raw as Record<string, unknown>).error).toBe('invalid_mgmt_base_url')
+    // pickMgmtBaseUrl filtra URLs inválidas, então caem em missing_lhm_params
+    expect((result.raw as Record<string, unknown>).error).toBe('missing_lhm_params')
   })
 
   it('happy path — retorna lhmPost com url, payload e reqUrl corretos', async () => {
@@ -155,5 +157,43 @@ describe('releaseAccessLhm', () => {
     expect(result.success).toBe(true)
     const info = (result.lhmPost!.payload as { info: Record<string, unknown> }).info
     expect(info.sessionLifetime).toBe(String(480 * 60))
+  })
+
+  it('aceita mgmtUrl (alias do SonicOS 7.x) quando mgmtBaseUrl ausente', async () => {
+    const params = makeParams({
+      lhmParams: {
+        sessionId: 'abc123',
+        mgmtUrl: 'https://10.212.200.250:4443/',
+      },
+    })
+    const result = await releaseAccessLhm(params, stubConfig, logger)
+    expect(result.success).toBe(true)
+    expect(result.lhmPost?.url).toBe('https://10.212.200.250:4443/lhmapi/externalAAAGuest')
+  })
+
+  it('prefere IP privado quando mgmtUrl (LAN) e mgmtBaseUrl (WAN) chegam juntos', async () => {
+    const params = makeParams({
+      lhmParams: {
+        sessionId: 'abc123',
+        mgmtUrl: 'https://10.212.200.250:4443/',
+        mgmtBaseUrl: 'https://168.181.151.214:4043/',
+      },
+    })
+    const result = await releaseAccessLhm(params, stubConfig, logger)
+    expect(result.success).toBe(true)
+    // Deve preferir o privado (10.x) mesmo o WAN tendo vindo
+    expect(result.lhmPost?.url).toBe('https://10.212.200.250:4443/lhmapi/externalAAAGuest')
+  })
+
+  it('usa mgmtBaseUrl quando só ele vier (compat retroativa)', async () => {
+    const params = makeParams({
+      lhmParams: {
+        sessionId: 'abc123',
+        mgmtBaseUrl: 'https://168.181.151.214:4043/',
+      },
+    })
+    const result = await releaseAccessLhm(params, stubConfig, logger)
+    expect(result.success).toBe(true)
+    expect(result.lhmPost?.url).toBe('https://168.181.151.214:4043/lhmapi/externalAAAGuest')
   })
 })
