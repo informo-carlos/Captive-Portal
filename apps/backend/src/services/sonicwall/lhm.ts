@@ -39,6 +39,39 @@ function isValidMgmtBaseUrl(raw: string): boolean {
   return true
 }
 
+/** Detecta IPv4 privado (RFC 1918). */
+function isPrivateIp(hostname: string): boolean {
+  const m = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+  if (!m) return false
+  const a = Number(m[1]), b = Number(m[2])
+  if (a === 10) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  return false
+}
+
+/**
+ * Escolhe a URL de management. SonicOS 7.x manda dois params no redirect:
+ *  - `mgmtUrl`: IP LAN do firewall (ex: https://10.212.200.250:4443/)
+ *  - `mgmtBaseUrl`: IP público (WAN) do firewall (ex: https://203.0.113.5:4043/)
+ *
+ * O navegador do cliente está na LAN, então acessar o IP LAN evita hairpin
+ * NAT + regras de management na WAN. Se ambos vierem, preferimos o privado.
+ * Se só um vier, usamos o que tiver.
+ */
+function pickMgmtBaseUrl(lhm: Record<string, string>): string | undefined {
+  const candidates: string[] = []
+  for (const k of ['mgmtUrl', 'mgmtBaseUrl']) {
+    const v = lhm[k]
+    if (typeof v === 'string' && v && isValidMgmtBaseUrl(v)) candidates.push(v)
+  }
+  if (candidates.length === 0) return undefined
+  const privateOne = candidates.find((u) => {
+    try { return isPrivateIp(new URL(u).hostname) } catch { return false }
+  })
+  return privateOne ?? candidates[0]
+}
+
 export async function releaseAccessLhm(
   params: ReleaseAccessParams,
   _config: SonicwallConfig,
@@ -46,7 +79,7 @@ export async function releaseAccessLhm(
 ): Promise<ReleaseAccessResult> {
   const lhm = params.lhmParams ?? {}
   const sessionId = lhm['sessionId']
-  const mgmtBaseUrl = lhm['mgmtBaseUrl']
+  const mgmtBaseUrl = pickMgmtBaseUrl(lhm)
   const reqUrl = lhm['req'] // URL original que o usuário tentou acessar
 
   // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
@@ -68,17 +101,7 @@ export async function releaseAccessLhm(
     }
   }
 
-  if (!isValidMgmtBaseUrl(mgmtBaseUrl)) {
-    logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_invalid_mgmt_base_url')
-    return {
-      success: false,
-      raw: {
-        error: 'invalid_mgmt_base_url',
-        message: 'mgmtBaseUrl inválido no redirect do SonicWall.',
-      },
-      mode: 'lhm',
-    }
-  }
+  // pickMgmtBaseUrl já validou via isValidMgmtBaseUrl, então não revalidamos.
 
   // sessionLifetime em segundos — vem de tenants.session_duration_minutes.
   // Todos os valores são strings (conforme guestLHMLogin.php da SonicWall).
@@ -128,6 +151,9 @@ export async function releaseAccessLhm(
   logger.info(
     {
       postUrl,
+      mgmtIsPrivate: isPrivateIp(new URL(mgmtBaseUrl).hostname),
+      receivedMgmtUrl: !!lhm['mgmtUrl'],
+      receivedMgmtBaseUrl: !!lhm['mgmtBaseUrl'],
       sessIdPresent: !!sessionId,
       sessionLifetimeSec,
       hasReqUrl: !!reqUrl,
