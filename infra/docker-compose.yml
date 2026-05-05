@@ -216,14 +216,69 @@ services:
     networks:
       - internal
 
+  # ─── WireGuard concentrator ─────────────────────────────────────────
+  # Túnel ponto-a-ponto entre VPS e SonicWall de cada tenant.
+  # Modo passive: VPS escuta, cada cliente inicia handshake.
+  # Range do túnel: 198.18.0.0/15 (RFC 2544 — sem overlap com cliente).
+  # VPS = 198.18.0.1; cada tenant ocupa um /32.
+  # Spec: docs/wireguard-vpn-architecture.md
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:1.0.20210914
+    container_name: infra-wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: 1
+      net.ipv4.ip_forward: 1
+    ports:
+      - "51820:51820/udp"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - SERVERPORT=51820
+      - INTERNAL_SUBNET=198.18.0.0
+      - PEERS=0  # peers gerenciados via API, não pelo entrypoint
+    volumes:
+      - wireguard_config:/config
+      - /lib/modules:/lib/modules:ro
+    networks:
+      external:
+        ipv4_address: 172.19.0.20
+
+  # ─── Sidecar HTTP que gerencia peers do WG ───────────────────────────
+  # Backend (admin-backend) chama este sidecar pra adicionar/remover peers
+  # do wg0, em vez de mexer direto via Docker socket. Mais limpo e seguro.
+  # Implementação: Go binary single-file (~50 linhas).
+  wg-api:
+    build:
+      context: ../apps/wg-api
+    container_name: infra-wg-api
+    restart: unless-stopped
+    network_mode: "service:wireguard"  # compartilha namespace de rede com o WG
+    depends_on:
+      - wireguard
+    environment:
+      - WG_INTERFACE=wg0
+      - LISTEN_ADDR=:9999
+      - API_KEY=${WG_API_KEY}  # passado via .env, autenticação simples
+    volumes:
+      - wireguard_config:/config:ro
+
 volumes:
   postgres_data:
   redis_data:
   certbot_certs:
   nginx_tenants_conf:
+  wireguard_config:
 
 networks:
   internal:
     driver: bridge
   external:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
