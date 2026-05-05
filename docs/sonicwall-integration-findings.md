@@ -21,9 +21,18 @@
   SonicOS 7.3.2. Tentativa anterior (PRs #17, #19 + 24 commits `fix(lhm): …`)
   ficou em WIP — última estratégia era POST do browser do cliente, que esbarra
   em CORS/preflight quando o gateway local responde com cert self-signed.
-- **Status atual (2026-04-30):** o fluxo OTP funciona até "Acesso autorizado",
+- **LHM REST `/lhmapi/externalAAAGuest` (PR #49–#51)**: implementado conforme
+  doc oficial, todos os parâmetros validados (sessId real 32-hex, IP origem
+  bate com sessId, MAC bate, Local User válido, Content-Type correto,
+  HMAC desabilitado). **Mesmo assim o firmware fecha a conexão silenciosamente
+  (empty reply)**. Não há logs de rejeição no firewall — silêncio total.
+  Concluído como **parede arquitetural**: o LHM REST foi projetado pra
+  servidor PHP rodando dentro da LAN do cliente (igual o exemplo
+  `guestLHMLogin.php`), não pra captive portal hospedado externamente.
+- **Status atual (2026-05-05):** o fluxo OTP funciona até "Acesso autorizado",
   mas a **liberação no firewall não acontece**. Cliente vê tela de sucesso e
-  permanece sem internet.
+  permanece sem internet. Caminho seguro pra produção é **WireGuard
+  VPS↔SonicWall** (Caminho A abaixo).
 
 ---
 
@@ -166,22 +175,56 @@ home → **loop**.
 - `docs/guestLHMLogin.php` — exemplo funcional que mostra exatamente o protocolo correto
 - `docs/guestLHMLogout.php`, `docs/guestLHMUpdateSess.php`, `docs/createGuestAccount.php`
 
-**Caminho recomendado pra retomar:**
+**Implementação 2026-05-05 (PRs #49–#51):**
 
-1. Reescrever `apps/backend/src/services/sonicwall/lhm.ts` pra:
-   - Usar endpoint `${mgmtBaseUrl}/lhmapi/externalAAAGuest`
-   - Montar body JSON com wrapper `{"info": {...}}`
-   - Suportar HMAC opcional (Phase 1 + Phase 2)
-2. **Importante:** se a VPS continuar **sem rota direta** pro firewall na LAN,
-   o POST tem que sair do navegador. Pra esse caminho:
-   - Tentar `Content-Type: application/x-www-form-urlencoded` com body como
-     campo `payload=<json>` (CORS simple request, sem preflight)
-   - **OU** servir uma página HTML que faz `fetch` de mesmo origin (HTTPS
-     captive portal contra HTTP/HTTPS firewall) — depende de browser
-   - **OU** o usuário aceitar o cert self-signed do firewall numa página
-     intermediária antes do POST
-3. Se a VPS tiver rota pro firewall (VPN site-to-site, peering), o caminho
-   ideal é POST backend-side (igual o PHP de referência) — sem mexer no browser.
+A reescrita do `lhm.ts` foi concluída:
+- Endpoint `${mgmtBaseUrl}/lhmapi/externalAAAGuest` com POST JSON
+- Body `{"info":{"action":1, sessId, userName, sessionLifetime, ...}}` igual `guestLHMLogin.php`
+- Frontend usa `fetch no-cors + Content-Type text/plain` (única forma cross-origin sem preflight)
+- 18 testes Vitest passando, deployado em produção
+- Override por Redis `lhm:mgmt_override:<tenantId>` pra forçar IP LAN quando SonicWall só envia o público
+
+**Diagnóstico exaustivo executado (2026-05-05) — sessão de ~3h:**
+
+Carlos rodou curl direto do PC dele conectado no Wi-Fi WGUEST (IP `10.212.200.80`,
+mesma subnet do sessId), com `application/json`, sessId real, MAC real,
+Local User válido com senha. **Empty reply em TODAS as variações.**
+
+Combinações testadas:
+- `text/plain` + JSON body (do navegador) → empty reply
+- `application/json` + JSON body completo (do PC dele) → empty reply
+- `application/json` + body `{}` vazio → empty reply
+- `application/json` + Local User + senha → empty reply
+- GET no endpoint → 404 (URL aparece vazia no erro — comportamento estranho)
+- OPTIONS no endpoint → **400 Bad Request** (confirma que o endpoint EXISTE)
+- GET no CGI antigo `externalGuestLogin.cgi` → 404 (confirmado removido)
+
+**Características do drop:**
+- TLS handshake completa OK
+- HTTP request enviado completo (`upload completely sent off: 246 bytes`)
+- Servidor recebe, decide internamente, e fecha com `close_notify` SEM enviar
+  qualquer byte HTTP de resposta
+- Logs do firewall em `MONITOR → Logs → System Logs` filtro `Wireless` mostram
+  apenas eventos de `802.11 Management` e `AutoChannel` — **nenhum log do
+  `lhmapi`**, confirmando que o firmware sequer registra a rejeição
+- HMAC desabilitado (`Enable Message Authentication: OFF` na config)
+
+**Conclusão (parede arquitetural):**
+
+O `lhmapi/externalAAAGuest` no SonicOS 7.3.2-7010 valida algo que NÃO ESTÁ
+documentado e não loga rejeição. Olhando a doc + os PHPs de referência mais
+de perto, fica claro que a SonicWall projetou esse endpoint pra ser chamado
+por um **web server PHP rodando dentro da LAN do cliente** (igual o exemplo
+`guestLHMLogin.php`). O fato do firewall esperar:
+- `mgmtBaseUrl` apontando pro IP "interno-pra-server" (público ou DMZ)
+- Server PHP que pode aceitar o cert self-signed do mgmt UI
+- Possivelmente um Web Server Address registrado em alguma config
+
+…sugere fortemente que o uso "captive portal externo SaaS público" simplesmente
+**não é cenário suportado**. Continuar tentando combinações sem visibilidade
+dos logs do `lhmapi` é caçar agulha no escuro.
+
+**Caminho viável: WireGuard (Caminho A abaixo).**
 
 **Arquivos relevantes:**
 - `apps/backend/src/services/sonicwall/lhm.ts`
@@ -194,24 +237,55 @@ home → **loop**.
 
 ## Caminhos possíveis daqui
 
-### A. ⭐ Retomar LHM com endpoint correto (recomendado)
+### A. ⭐ WireGuard VPS↔SonicWall + LHM server-side (RECOMENDADO)
 
-Agora que temos o protocolo oficial confirmado via `guestLHMLogin.php`,
-reescrever `lhm.ts` pra:
+Após a sessão de diagnóstico de 2026-05-05, ficou claro que **POST do navegador
+não é caminho viável** — firmware drop silencioso por validação não documentada.
 
-- Endpoint: `${mgmtBaseUrl}/lhmapi/externalAAAGuest`
-- POST JSON `{"info": {action: 1, sessId, userName, sessionLifetime, ...}}`
-- HMAC SHA256 nas duas fases (se firewall configurado)
-- Tratar resposta `{"code": "50"}` = sucesso
+A solução robusta é replicar EXATAMENTE o que o `guestLHMLogin.php` faz:
+servidor PHP/Node fazendo POST direto pro firewall via mgmtBaseUrl. Pra isso,
+a VPS precisa de **rota direta** pro IP de management do firewall do cliente.
+WireGuard é a forma mais simples:
 
-Sub-questão pendente: o POST sai do **backend** (precisa rota pro firewall
-LAN — VPN site-to-site) ou do **navegador do cliente** (sem rota da VPS,
-mas esbarra em CORS+cert self-signed)? **Validar conforme topologia real
-de cada cliente.**
+```
+[Cliente Wi-Fi]──┐
+                 │
+[SonicWall LAN]──┼────WireGuard────[VPS]
+                 │       VPN              ↓
+                 │                Backend faz POST direto:
+                 │                  POST https://10.X.Y.Z:4443/lhmapi/externalAAAGuest
+                 │                Igual o PHP de referência
+```
 
-A solução do PHP oficial usa POST backend-side. Se replicarmos isso,
-precisamos de túnel VPN/wireguard entre VPS e a LAN do firewall — ou
-hospedar uma instância do backend na LAN do cliente (modo on-prem).
+**Por que esse caminho funciona:**
+- ✅ Replica EXATAMENTE o exemplo PHP oficial — sabemos que funciona
+- ✅ Não depende de cert HTTPS válido (server pode ignorar com `rejectUnauthorized: false`)
+- ✅ Não depende de hairpin NAT (VPS → IP LAN via VPN, sem hairpin)
+- ✅ Não depende de validação misteriosa de IP origem do firewall
+- ✅ Backend tem retry, log, observability completos
+- ✅ Multi-tenant: cada cliente tem seu túnel WireGuard separado
+- ✅ SonicOS 7+ tem WireGuard nativo (`Network → IPSec/SSL VPN/WireGuard`)
+- ⚠️ Setup ~5–10min por cliente novo (uma vez)
+
+**Mudanças no código necessárias:**
+- Remover lógica de `lhmPost` retornando instrução pro frontend
+- Voltar pro `redirectUrl` (302 simples pro `req` original do redirect inicial)
+- Backend faz POST server-side imediatamente após verify-otp success
+- Tenant tem campo opcional `lhm_via_vpn=true` indicando WireGuard configurado
+
+**Setup por cliente (resumo):**
+1. Gerar par de chaves WireGuard (cliente + VPS)
+2. Adicionar peer no SonicWall com IP `10.10.X.0/30` (X=tenant_id)
+3. Adicionar peer no servidor WireGuard da VPS
+4. Configurar route `10.212.X.0/24` (LAN do cliente) via tunnel
+5. Salvar IP de mgmt do firewall (`10.212.X.250:4443`) no tenant config
+6. Backend usa esse IP como `mgmtBaseUrl` em vez do que vem no redirect
+
+### B. POST direto sem VPN (TENTAMOS — não funcionou)
+
+Tentativa documentada acima na seção "O que NÃO funciona". Esgotamos as
+combinações de Content-Type, sessId real, IP origem correto, MAC bate, Local
+User válido. Firmware sempre fecha conexão sem responder.
 
 ### B. SonicOS REST API com auth-aware bypass de captive portal
 
