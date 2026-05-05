@@ -303,30 +303,51 @@ userspace fallback (`wireguard-go`).
 
 ## 7. Mudanças no schema de banco
 
-Migration `010_tenants_vpn.sql`:
+Migration `017_tenants_vpn.sql`:
 
 ```sql
 ALTER TABLE tenants
-  ADD COLUMN vpn_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  ADD COLUMN vpn_peer_ip INET,
-  ADD COLUMN vpn_public_key TEXT,
-  ADD COLUMN vpn_preshared_key_enc TEXT,
-  ADD COLUMN vpn_status TEXT
-    CHECK (vpn_status IN ('disabled','pending','awaiting_handshake','connected','disconnected','error'))
-    DEFAULT 'disabled',
-  ADD COLUMN vpn_last_handshake TIMESTAMPTZ,
-  ADD COLUMN vpn_last_status_check TIMESTAMPTZ,
-  ADD COLUMN lhm_mgmt_lan_url TEXT;
+  ADD COLUMN IF NOT EXISTS vpn_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS vpn_peer_ip INET,
+  ADD COLUMN IF NOT EXISTS vpn_public_key TEXT,
+  ADD COLUMN IF NOT EXISTS vpn_preshared_key_enc TEXT,
+  ADD COLUMN IF NOT EXISTS vpn_status TEXT DEFAULT 'disabled',
+  ADD COLUMN IF NOT EXISTS vpn_endpoint_observed TEXT,
+  ADD COLUMN IF NOT EXISTS vpn_last_handshake TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS vpn_last_status_check TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS vpn_transfer_rx_bytes BIGINT,
+  ADD COLUMN IF NOT EXISTS vpn_transfer_tx_bytes BIGINT,
+  ADD COLUMN IF NOT EXISTS lhm_mgmt_lan_url TEXT;
 
 -- Único: só um tenant por IP de VPN
-CREATE UNIQUE INDEX idx_tenants_vpn_peer_ip ON tenants (vpn_peer_ip)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_vpn_peer_ip
+  ON tenants (vpn_peer_ip)
   WHERE vpn_peer_ip IS NOT NULL;
 
-COMMENT ON COLUMN tenants.vpn_peer_ip IS
-  '/32 alocado dentro de 198.18.0.0/15 (RFC 2544). VPS sempre 198.18.0.1.';
-COMMENT ON COLUMN tenants.lhm_mgmt_lan_url IS
-  'URL do mgmt UI do firewall via VPN (ex: https://198.18.0.5:4443/). Sobrescreve mgmtBaseUrl do redirect quando vpn_enabled.';
+-- Constraint nos valores aceitos de vpn_status
+ALTER TABLE tenants
+  ADD CONSTRAINT tenants_vpn_status_check
+  CHECK (vpn_status IN (
+    'disabled','pending','awaiting_handshake',
+    'connected','disconnected','error'
+  ));
 ```
+
+### Resumo das colunas
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `vpn_enabled` | BOOLEAN | Se true, backend usa `lhm_mgmt_lan_url` em vez do `mgmtBaseUrl` do redirect. |
+| `vpn_peer_ip` | INET | /32 alocado dentro de `198.18.0.0/15`. VPS sempre `198.18.0.1`. |
+| `vpn_public_key` | TEXT | Chave pública WG gerada no SonicWall. Privada nunca sai do firewall. |
+| `vpn_preshared_key_enc` | TEXT | PSK gerada pelo backend. Criptografada AES-256 via `services/crypto.ts`. |
+| `vpn_status` | TEXT | `disabled`/`pending`/`awaiting_handshake`/`connected`/`disconnected`/`error`. |
+| `vpn_endpoint_observed` | TEXT | IP:porta de origem observado no último handshake (telemetria/troubleshooting). |
+| `vpn_last_handshake` | TIMESTAMPTZ | Última vez que houve handshake com sucesso. |
+| `vpn_last_status_check` | TIMESTAMPTZ | Última vez que o worker checou o status. |
+| `vpn_transfer_rx_bytes` | BIGINT | Bytes recebidos do peer (acumulado, do `wg show`). |
+| `vpn_transfer_tx_bytes` | BIGINT | Bytes enviados pro peer (acumulado, do `wg show`). |
+| `lhm_mgmt_lan_url` | TEXT | URL completa do mgmt via VPN (ex: `https://198.18.0.5:4443/`). |
 
 ---
 
@@ -336,7 +357,7 @@ COMMENT ON COLUMN tenants.lhm_mgmt_lan_url IS
 - [x] Doc de arquitetura (este arquivo)
 - [ ] Doc de spec pro frontend (`wireguard-frontend-spec.md`)
 - [ ] Doc de setup SonicWall (`wireguard-sonicwall-setup.md`)
-- [ ] Migration `010_tenants_vpn.sql`
+- [ ] Migration `017_tenants_vpn.sql`
 - [ ] Adição do serviço `wireguard` no `docker-compose.yml`
 - [ ] Issue/PR no GitHub pra time de frontend
 

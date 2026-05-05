@@ -245,6 +245,10 @@ services:
       - wireguard_config:/config
       - /lib/modules:/lib/modules:ro
     networks:
+      # `internal` é necessária pra admin-backend chamar o sidecar wg-api.
+      # Como wg-api usa `network_mode: service:wireguard`, o sidecar herda
+      # ambas as redes deste container e fica acessível como `wireguard:9999`.
+      internal:
       external:
         ipv4_address: 172.19.0.20
 
@@ -252,6 +256,10 @@ services:
   # Backend (admin-backend) chama este sidecar pra adicionar/remover peers
   # do wg0, em vez de mexer direto via Docker socket. Mais limpo e seguro.
   # Implementação: Go binary single-file (~50 linhas).
+  #
+  # IMPORTANTE: usa `network_mode: service:wireguard`, então NÃO tem hostname
+  # próprio na rede docker. O admin-backend deve chamar via `wireguard:9999`
+  # (hostname do container que dona do namespace de rede).
   wg-api:
     build:
       context: ../apps/wg-api
