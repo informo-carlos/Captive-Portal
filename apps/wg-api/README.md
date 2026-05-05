@@ -2,7 +2,7 @@
 
 > **Status:** stub. Implementação na Fase 2 (próxima sessão).
 
-Pequeno serviço HTTP em Go que gerencia peers do `wg0` no container
+Pequeno serviço HTTP em Node/Fastify que gerencia peers do `wg0` no container
 WireGuard. Roda no mesmo network namespace que o `wireguard` (via
 `network_mode: "service:wireguard"`) então `wg show` enxerga a interface.
 
@@ -26,21 +26,28 @@ GET    /peers/:public_key
 Auth via header `Authorization: Bearer <WG_API_KEY>` (env var, mesma
 secret no admin-backend).
 
-## Por que Go
+## Por que Node
 
-- Single binary, ~5MB
-- Sem deps de runtime (vs Node/Python)
-- Excelente API stdlib pra `net/http`
-- `golang.zx2c4.com/wireguard/wgctrl` é a lib oficial pra falar com WG
+- Consistência com resto do stack (admin-backend, portal-backend, provisioner são todos Node/Fastify/TypeScript)
+- Reaproveitar patterns já existentes: logger Fastify, schemas JSON, error format
+- Um dev mantém todo o backend sem trocar de linguagem
+- Performance suficiente — tráfego é apenas chamadas administrativas (provisão de peer, ~ms por request)
+
+## Implementação
+
+Base image: `node:20-alpine` + `apk add wireguard-tools` (pra ter o binário `wg`).
+
+Parsing do `wg show wg0 dump` via `child_process.execFile('wg', ['show', 'wg0', 'dump'])`
+e gerenciamento de peers via `wg set wg0 peer ...` / `wg-quick`.
 
 ## Roadmap
 
-- [ ] `main.go` — server HTTP minimal
-- [ ] `Dockerfile` — multi-stage build
-- [ ] Auth middleware (Bearer token)
-- [ ] Integration com `wgctrl-go`
-- [ ] Healthcheck `/health`
-- [ ] Logs estruturados (JSON, igual o resto do projeto)
-- [ ] Tests com `httptest`
+- [ ] `src/server.ts` — Fastify minimal com schemas JSON
+- [ ] `Dockerfile` — `node:20-alpine` + `wireguard-tools`
+- [ ] Auth plugin (Bearer token via header)
+- [ ] `services/wg.ts` — wrapper do `wg` CLI via `execFile`
+- [ ] Healthcheck `GET /health`
+- [ ] Logs estruturados (Fastify logger, JSON)
+- [ ] Tests com `vitest` + `supertest` (igual o portal-backend)
 
-Implementação: ~150 linhas Go, ~30min de trabalho.
+Implementação: ~200 linhas TS, similar à estrutura do `admin-backend`.

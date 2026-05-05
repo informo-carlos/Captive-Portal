@@ -255,7 +255,8 @@ services:
   # ─── Sidecar HTTP que gerencia peers do WG ───────────────────────────
   # Backend (admin-backend) chama este sidecar pra adicionar/remover peers
   # do wg0, em vez de mexer direto via Docker socket. Mais limpo e seguro.
-  # Implementação: Go binary single-file (~50 linhas).
+  # Implementação: Node/Fastify (consistência com resto do stack), shell-out
+  # pro CLI `wg` via child_process. Ver apps/wg-api/README.md.
   #
   # IMPORTANTE: usa `network_mode: service:wireguard`, então NÃO tem hostname
   # próprio na rede docker. O admin-backend deve chamar via `wireguard:9999`

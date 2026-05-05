@@ -362,12 +362,18 @@ ALTER TABLE tenants
 - [ ] Issue/PR no GitHub pra time de frontend
 
 ### Fase 2 — Backend (próxima sessão)
-- [ ] Sidecar HTTP simples no container WG (`/peers` endpoint)
+- [ ] Sidecar HTTP simples no container WG (`/peers` endpoint) — **Node/Fastify**
 - [ ] Plugin `wireguard.ts` no `apps/backend` ou `apps/admin-backend`
 - [ ] Endpoints `/admin/tenants/:id/vpn/*`
 - [ ] Refactor `lhm.ts`: usar `lhm_mgmt_lan_url` quando `vpn_enabled`
 - [ ] Worker periódico que checa handshake e atualiza `vpn_status`
 - [ ] Setup script da VPS (`infra/scripts/wireguard-setup.sh`)
+
+> **Primeiro deploy de validação** (decidido 2026-05-05): aplicar no container
+> do tenant **INFORMO** existente (já roda em modo LHM com TZ 370 da matriz).
+> A rota pro range `198.18.0.0/15` no container portal-cliente é configurada
+> manualmente nesse caso. Generalizar pra injeção automática via provisioner
+> quando habilitar `vpn_enabled` em outros tenants vem depois.
 
 ### Fase 3 — Frontend
 - [ ] Aba "VPN" no `tenant-modal.tsx`
@@ -385,8 +391,10 @@ ALTER TABLE tenants
 
 ## 9. Open questions
 
-1. **Sidecar HTTP no container WG**: implementar em Go (binary pequeno) ou Node?
-   Provável: Go, ~50 linhas, sem dependências, fácil rebuild. Ou Python.
+1. ~~**Sidecar HTTP no container WG**: implementar em Go ou Node?~~
+   **Decidido (2026-05-05): Node/Fastify**, pra manter consistência com o
+   resto do stack (admin-backend, portal-backend, provisioner). Ver
+   [`apps/wg-api/README.md`](../apps/wg-api/README.md).
 2. **Rotação de chaves**: cliente perde chave / chave vaza — UI deve permitir
    regenerar. Implementar agora ou depois?
 3. **Multi-region**: se algum dia a VPS migrar / tiver réplicas, cada peer
