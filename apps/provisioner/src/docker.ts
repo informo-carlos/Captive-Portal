@@ -145,6 +145,13 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
     labels['captive.radius_acct_port'] = String(tenant.radius_acct_port)
   }
 
+  // Tenant com VPN precisa: (1) estar na rede `external` pra alcançar o
+  // container infra-wireguard (172.19.0.20), (2) cap NET_ADMIN pra o
+  // backend conseguir adicionar rota `198.18.0.0/15 via 172.19.0.20`
+  // no boot via `ip route add` (ver apps/backend/src/app.ts).
+  const hasVpn = !!tenant.lhm_mgmt_lan_url
+  const capAdd: string[] = hasVpn ? ['NET_ADMIN'] : []
+
   const container = await docker.createContainer({
     name,
     Image: config.portalImage,
@@ -154,9 +161,24 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
     HostConfig: {
       RestartPolicy: { Name: 'unless-stopped' },
       NetworkMode: config.internalNetwork,
+      CapAdd: capAdd,
       ...(isRadius ? { PortBindings: portBindings } : {}),
     },
   })
+
+  // Conecta na rede external quando VPN ativa, ANTES de subir o container,
+  // pra a rota seja viável quando o backend boot.
+  if (hasVpn) {
+    try {
+      const externalNet = docker.getNetwork('infra_external')
+      await externalNet.connect({ Container: container.id })
+    } catch (err) {
+      // Se rede não existe, log e segue — o backend vai falhar ao adicionar rota
+      // mas o container sobe (modo degradado).
+      // eslint-disable-next-line no-console
+      console.warn('[provisioner] failed to connect container to infra_external:', err)
+    }
+  }
 
   await container.start()
   return container.id
