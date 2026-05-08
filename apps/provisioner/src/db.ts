@@ -18,6 +18,12 @@ export interface PendingTenant {
   zenvia_sender: string
   session_duration_minutes: number
   serials: string[]
+  /**
+   * URL base do mgmt LHM via WireGuard VPN (ex: "https://198.18.0.5:4443/").
+   * NULL quando tenant não tem VPN habilitada. Injetada como LHM_MGMT_LAN_URL
+   * no container portal pra que o backend faça POST server-side via tunnel.
+   */
+  lhm_mgmt_lan_url: string | null
 }
 
 interface SonicwallConfigDecrypted {
@@ -52,6 +58,7 @@ interface TenantRow {
   zenvia_sender: string
   session_duration_minutes: number
   serials: string[]
+  lhm_mgmt_lan_url: string | null
 }
 
 function decryptSonicwallConfig(raw: unknown): SonicwallConfigDecrypted {
@@ -91,6 +98,7 @@ export async function fetchPendingTenants(): Promise<PendingTenant[]> {
             t.sonicwall_config, t.radius_config,
             t.radius_auth_port, t.radius_acct_port,
             t.zenvia_token, t.zenvia_sender, t.session_duration_minutes,
+            t.lhm_mgmt_lan_url,
             COALESCE(
               (SELECT array_agg(ts.serial) FROM tenant_serials ts WHERE ts.tenant_id = t.id),
               ARRAY[]::text[]
@@ -119,6 +127,7 @@ export async function fetchPendingTenants(): Promise<PendingTenant[]> {
     zenvia_sender: row.zenvia_sender ? decrypt(row.zenvia_sender, config.encryptionKey) : '',
     session_duration_minutes: row.session_duration_minutes,
     serials: row.serials,
+    lhm_mgmt_lan_url: row.lhm_mgmt_lan_url ?? null,
   }))
 }
 

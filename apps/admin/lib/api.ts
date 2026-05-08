@@ -231,6 +231,97 @@ export function deleteUser(id: string): Promise<void> {
   return request<void>(`/admin/users/${id}`, { method: 'DELETE' })
 }
 
+// ─── VPN WireGuard ──────────────────────────────────────
+
+export interface VpnEnableResponse {
+  vpn_peer_ip: string
+  endpoint: string
+  allowed_ips: string
+  persistent_keepalive: number
+  preshared_key: string
+  vps_public_key: string
+  lhm_mgmt_lan_url: string
+  vpn_status: 'pending'
+}
+
+export interface VpnStatusResponse {
+  vpn_status: 'disabled' | 'pending' | 'awaiting_handshake' | 'connected' | 'disconnected' | 'error'
+  vpn_peer_ip?: string
+  endpoint_observed?: string
+  last_handshake_seconds_ago?: number
+  transfer_rx_bytes?: number
+  transfer_tx_bytes?: number
+  lhm_mgmt_lan_url?: string
+  error_message?: string
+}
+
+export interface VpnTestLhmResponse {
+  reachable: boolean
+  http_status?: number
+  response_body?: string
+  duration_ms?: number
+  error?: string
+  details?: string
+}
+
+export interface VpnRegeneratePskResponse {
+  preshared_key: string
+  vpn_status: string
+}
+
+export function enableVpn(tenantId: string): Promise<VpnEnableResponse> {
+  return request<VpnEnableResponse>(`/admin/tenants/${tenantId}/vpn/enable`, {
+    method: 'POST',
+  })
+}
+
+export function submitVpnPublicKey(
+  tenantId: string,
+  publicKey: string,
+): Promise<{ vpn_status: string }> {
+  return request<{ vpn_status: string }>(`/admin/tenants/${tenantId}/vpn/peer-public-key`, {
+    method: 'POST',
+    body: JSON.stringify({ public_key: publicKey }),
+  })
+}
+
+export function getVpnStatus(tenantId: string): Promise<VpnStatusResponse> {
+  return request<VpnStatusResponse>(`/admin/tenants/${tenantId}/vpn/status`)
+}
+
+export function testVpnLhm(tenantId: string): Promise<VpnTestLhmResponse> {
+  return request<VpnTestLhmResponse>(`/admin/tenants/${tenantId}/vpn/test-lhm`, {
+    method: 'POST',
+  })
+}
+
+export function regenerateVpnPsk(tenantId: string): Promise<VpnRegeneratePskResponse> {
+  return request<VpnRegeneratePskResponse>(`/admin/tenants/${tenantId}/vpn/regenerate-psk`, {
+    method: 'POST',
+  })
+}
+
+export function disableVpn(tenantId: string): Promise<void> {
+  return request<void>(`/admin/tenants/${tenantId}/vpn`, { method: 'DELETE' })
+}
+
+export async function downloadVpnConfig(tenantId: string): Promise<Blob> {
+  const url = `${API_URL}/admin/tenants/${tenantId}/vpn/config-download`
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(url, { headers })
+  if (!res.ok) {
+    throw new ApiRequestError({
+      error: 'download_failed',
+      message: 'Falha ao baixar configuração WireGuard.',
+      code: res.status,
+    })
+  }
+  return res.blob()
+}
+
 // ─── Audit Logs ─────────────────────────────────────────
 
 export function getAuditLogs(

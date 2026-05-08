@@ -7,20 +7,37 @@
 //        sessionId, mac, ip, ufi, mgmtBaseUrl, clientRedirectUrl, req
 //   3. Capturamos esses params no frontend e enviamos no request-otp.
 //      Backend guarda em Redis junto com o OTP.
-//   4. Após verify-otp OK, esta função MONTA a instrução de POST:
-//        url:     ${mgmtBaseUrl}lhmapi/externalAAAGuest
-//        payload: { info: { action: 1, sessId, userName, sessionLifetime, ... } }
-//   5. Devolve `lhmPost` no resultado. O frontend faz fetch no-cors pro
-//      firewall — como o navegador do usuário está DENTRO da rede do cliente,
-//      ele alcança o gateway local. A nossa VPS NUNCA toca no SonicWall.
-//   6. SonicWall valida o sessId, libera o acesso e o frontend redireciona
-//      pra `reqUrl` (URL original) ou /success.
+//   4. Após verify-otp OK, esta função decide o modo de liberação:
+//
+//   MODO VPN (LHM_MGMT_LAN_URL configurada):
+//     Backend faz POST server-side direto pro firewall via wg0 (tunnel VPN).
+//     Retorna sucesso direto pro verify-otp handler → frontend redireciona pro
+//     `req` original. O navegador do usuário NÃO participa da chamada LHM.
+//
+//   MODO LEGADO (sem LHM_MGMT_LAN_URL, compatibilidade retroativa):
+//     Retorna `lhmPost` instruction pro frontend. O frontend faz fetch no-cors
+//     pro firewall — funciona porque o navegador está na LAN do cliente.
+//     Sem garantia de sucesso (no-cors = sem acesso ao response status).
 //
 // Referência: docs/guestLHMLogin.php (fornecido pela SonicWall)
 // Ver também: docs/lhm-protocol-tz570.md (protocolo CGI antigo, <= 7.2)
+// Ver também: docs/wireguard-vpn-architecture.md seção 2.4 (fluxo VPN)
 
+import { Agent as UndiciAgent } from 'undici'
 import type { FastifyBaseLogger } from 'fastify'
 import type { ReleaseAccessParams, ReleaseAccessResult, SonicwallConfig } from './index'
+
+// Dispatcher undici que ignora cert self-signed do SonicWall.
+// O SonicWall usa certificado auto-assinado na interface de management
+// — aceitável aqui porque a autenticação real é feita via WireGuard PSK +
+// sessId gerado pelo próprio firewall (dupla validação).
+// NOTA DE REDE: o container portal precisa ter rota pra 198.18.0.0/15
+// via 172.19.0.20 (container infra-wireguard) E estar na rede docker
+// `external` (172.19.0.0/16). Isso é responsabilidade da infra — ver
+// docs/wireguard-vpn-architecture.md seção 4.4 e docker-compose.yml.
+const tunnelDispatcher = new UndiciAgent({
+  connect: { rejectUnauthorized: false },
+})
 
 /** Limite do path do mgmtBaseUrl pra evitar SSRF/abuso. */
 const MAX_MGMT_BASE_URL_LENGTH = 512
@@ -87,6 +104,55 @@ export async function releaseAccessLhm(
     pickMgmtBaseUrl(lhm)
   const reqUrl = lhm['req'] // URL original que o usuário tentou acessar
 
+  // sessionLifetime em segundos — vem de tenants.session_duration_minutes.
+  const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
+
+  // Normaliza o MAC: uppercase sem separadores (ex: 000E35BDC937).
+  // O SonicWall usa o MAC como userName no log interno.
+  const normalizedMacUserName = params.mac.replace(/[:\-]/g, '').toUpperCase()
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // MODO VPN — POST server-side via WireGuard tunnel
+  //
+  // Quando LHM_MGMT_LAN_URL está configurada, o backend faz o POST diretamente
+  // pro SonicWall via wg0. Não dependemos do browser do usuário.
+  // Dispensamos a validação de sessionId+mgmtBaseUrl do redirect neste modo,
+  // pois o sessionId vem do redirect do SonicWall (obrigatório) mas o
+  // mgmtBaseUrl é substituído pela URL do tunnel.
+  // ──────────────────────────────────────────────────────────────────────────
+  const tunnelMgmtUrl = process.env['LHM_MGMT_LAN_URL']
+  if (tunnelMgmtUrl) {
+    if (!sessionId) {
+      logger.error({ lhmKeys: Object.keys(lhm) }, 'lhm_tunnel_missing_session_id')
+      return {
+        success: false,
+        raw: {
+          error: 'missing_session_id',
+          message:
+            'sessId ausente nos params do redirect SonicWall. ' +
+            'Conecte-se à rede Wi-Fi e tente novamente.',
+        },
+        mode: 'lhm',
+      }
+    }
+    return postViaTunnel({
+      mgmtUrl: tunnelMgmtUrl,
+      sessionId,
+      userName: normalizedMacUserName,
+      sessionLifetimeSec,
+      reqUrl: reqUrl || undefined,
+      logger,
+    })
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // MODO LEGADO — instrução de POST devolvida pro frontend (no-cors)
+  //
+  // Compatibilidade retroativa pra tenants sem VPN configurada.
+  // O navegador do usuário (dentro da LAN do cliente) faz o fetch.
+  // Sem garantia de sucesso: fetch no-cors não expõe o response status.
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Sem sessionId+mgmtBaseUrl não há LHM possível: usuário chegou no portal
   // sem passar pelo SonicWall (ex: digitou o IP direto).
   if (!sessionId || !mgmtBaseUrl) {
@@ -108,14 +174,8 @@ export async function releaseAccessLhm(
 
   // pickMgmtBaseUrl já validou via isValidMgmtBaseUrl, então não revalidamos.
 
-  // sessionLifetime em segundos — vem de tenants.session_duration_minutes.
   // Todos os valores são strings (conforme guestLHMLogin.php da SonicWall).
-  const sessionLifetimeSec = (params.sessionMinutes ?? 480) * 60
   const sessionLifetimeStr = String(sessionLifetimeSec)
-
-  // Normaliza o MAC: uppercase sem separadores (ex: 000E35BDC937).
-  // O SonicWall usa o MAC como userName no log interno.
-  const userName = params.mac.replace(/[:\-]/g, '').toUpperCase()
 
   // Monta a URL do endpoint REST do SonicOS 7.3.2+
   const base = mgmtBaseUrl.endsWith('/') ? mgmtBaseUrl : mgmtBaseUrl + '/'
@@ -141,7 +201,7 @@ export async function releaseAccessLhm(
     info: {
       action: 1,
       sessId: sessionId,
-      userName,
+      userName: normalizedMacUserName,
       sessionLifetime: sessionLifetimeStr,
       idleTimeout: '1800',
       maxRx: '0',
@@ -180,5 +240,124 @@ export async function releaseAccessLhm(
       payload,
       reqUrl: reqUrl || undefined,
     },
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// postViaTunnel — POST server-side pro SonicWall via WireGuard tunnel
+// ────────────────────────────────────────────────────────────────────────────
+
+interface PostViaTunnelOpts {
+  /** URL base do mgmt via VPN (ex: "https://198.18.0.5:4443/"). */
+  mgmtUrl: string
+  sessionId: string
+  /** MAC normalizado: uppercase sem separadores (ex: "000E35BDC937"). */
+  userName: string
+  sessionLifetimeSec: number
+  /** URL original que o usuário tentou acessar — frontend redireciona pra cá. */
+  reqUrl?: string
+  logger: FastifyBaseLogger
+}
+
+async function postViaTunnel(opts: PostViaTunnelOpts): Promise<ReleaseAccessResult> {
+  const base = opts.mgmtUrl.endsWith('/') ? opts.mgmtUrl : opts.mgmtUrl + '/'
+  const url = new URL('lhmapi/externalAAAGuest', base).toString()
+
+  const sessionLifetimeStr = String(opts.sessionLifetimeSec)
+  const body = JSON.stringify({
+    info: {
+      action: 1,
+      sessId: opts.sessionId,
+      userName: opts.userName,
+      sessionLifetime: sessionLifetimeStr,
+      idleTimeout: '1800',
+      maxRx: '0',
+      maxTx: '0',
+      quotaCycleType: '0',
+      cycleSessionLifeTime: sessionLifetimeStr,
+      cycleMaxRx: '0',
+      cycleMaxTx: '0',
+    },
+  })
+
+  opts.logger.info(
+    {
+      url,
+      sessionLifetimeSec: opts.sessionLifetimeSec,
+      hasReqUrl: !!opts.reqUrl,
+    },
+    'lhm_tunnel_post_starting',
+  )
+
+  const start = Date.now()
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      // undici dispatcher ignora cert self-signed do SonicWall.
+      // @ts-expect-error — `dispatcher` é propriedade do undici fetch (não está nos tipos globais do Node)
+      dispatcher: tunnelDispatcher,
+    })
+
+    const text = await response.text()
+    const dur = Date.now() - start
+
+    let parsed: { code?: string; message?: string } = {}
+    try {
+      parsed = JSON.parse(text) as { code?: string; message?: string }
+    } catch {
+      // body não é JSON — SonicWall antigo pode retornar texto plano
+    }
+
+    // Código "50" = sucesso no SonicOS LHM REST (guestLHMLogin.php linha ~180)
+    if (parsed.code === '50') {
+      opts.logger.info(
+        { duration_ms: dur, code: parsed.code },
+        'lhm_tunnel_post_success',
+      )
+      return {
+        success: true,
+        mode: 'lhm',
+        raw: { protocol: 'lhm_via_vpn', duration_ms: dur, code: parsed.code },
+        // Modo VPN: sem lhmPost — backend já fez o POST.
+        // Frontend deve redirecionar pro reqUrl original (ou /success).
+        redirectUrl: opts.reqUrl,
+      }
+    }
+
+    opts.logger.error(
+      {
+        duration_ms: dur,
+        http_status: response.status,
+        body_preview: text.slice(0, 200),
+        code: parsed.code,
+      },
+      'lhm_tunnel_post_failed',
+    )
+    return {
+      success: false,
+      mode: 'lhm',
+      raw: {
+        protocol: 'lhm_via_vpn',
+        duration_ms: dur,
+        http_status: response.status,
+        body_preview: text.slice(0, 200),
+        code: parsed.code,
+      },
+    }
+  } catch (err) {
+    const dur = Date.now() - start
+    const msg = err instanceof Error ? err.message : String(err)
+    opts.logger.error(
+      { duration_ms: dur, error: msg },
+      'lhm_tunnel_post_error',
+    )
+    return {
+      success: false,
+      mode: 'lhm',
+      raw: { protocol: 'lhm_via_vpn', error: msg, duration_ms: dur },
+    }
   }
 }

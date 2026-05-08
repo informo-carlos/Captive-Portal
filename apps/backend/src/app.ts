@@ -43,8 +43,35 @@ async function buildApp() {
   return fastify
 }
 
+/**
+ * Adiciona rota pra `198.18.0.0/15 via 172.19.0.20` (container infra-wireguard).
+ * Necessária quando o tenant tem VPN ativa: o backend faz POST direto pro
+ * SonicWall via wg0. Requer cap NET_ADMIN no container (configurado pelo
+ * provisioner).
+ *
+ * Fail-soft: se falhar (sem cap, container não conectado em external, etc),
+ * loga warning e segue — POST LHM vai falhar runtime, mas o container sobe.
+ */
+function ensureVpnRoute(log: { warn: (...args: unknown[]) => void; info: (...args: unknown[]) => void }): void {
+  if (!process.env['LHM_MGMT_LAN_URL']) return
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { execSync } = require('node:child_process') as typeof import('node:child_process')
+  try {
+    execSync('ip route replace 198.18.0.0/15 via 172.19.0.20', { stdio: 'pipe' })
+    log.info({ via: '172.19.0.20', range: '198.18.0.0/15' }, 'vpn_route_added')
+  } catch (err) {
+    log.warn(
+      { error: err instanceof Error ? err.message : String(err) },
+      'vpn_route_add_failed_continuing',
+    )
+  }
+}
+
 async function start() {
   const app = await buildApp()
+
+  // Adiciona rota pro tunnel WG antes de aceitar requests
+  ensureVpnRoute(app.log)
 
   try {
     const address = await app.listen({

@@ -11,6 +11,9 @@ import {
   validateRadiusForm,
   type RadiusFormData,
 } from './tenant-modal-radius'
+import { VpnTab } from './vpn-tab'
+
+type ModalTab = 'geral' | 'vpn'
 
 interface TenantModalProps {
   tenant: Tenant | null
@@ -74,6 +77,12 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null)
+  const [activeTab, setActiveTab] = useState<ModalTab>('geral')
+
+  const isLhmMode =
+    isEditing &&
+    form.auth_mode === 'sonicwall' &&
+    form.sw_mode === 'lhm'
 
   const hasExistingRadiusSecret = !!tenant?.radius_config?.has_shared_secret
 
@@ -330,8 +339,59 @@ export function TenantModal({ tenant, onClose, onSuccess }: TenantModalProps) {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Tabs — só em modo edição */}
+        {isEditing && (
+          <div className="flex items-center gap-1 border-b border-t-default px-6">
+            {(
+              [
+                { key: 'geral' as const, label: 'Geral' },
+                { key: 'vpn' as const, label: '⭐ VPN' },
+              ] satisfies { key: ModalTab; label: string }[]
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  activeTab === tab.key
+                    ? 'border-edge-cyan text-edge-cyan'
+                    : 'border-transparent text-t-label hover:text-t-secondary hover:border-t-input'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Aba VPN */}
+        {isEditing && activeTab === 'vpn' && tenant && (
+          <div className="p-6">
+            {isLhmMode ? (
+              <VpnTab tenantId={tenant.id} tenantName={tenant.name} />
+            ) : (
+              <div className="rounded-lg border border-t-default bg-t-input/30 p-6 text-center">
+                <p className="text-sm text-t-muted">
+                  VPN só é necessária no modo LHM (External Guest Authentication).
+                </p>
+                <p className="mt-1 text-xs text-t-placeholder">
+                  Modo atual:{' '}
+                  {form.auth_mode === 'radius'
+                    ? 'RADIUS'
+                    : form.sw_mode === 'rest'
+                    ? 'SonicWall REST'
+                    : 'SonicWall LHM'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Form — aba Geral (ou criação sem tabs) */}
+        <form
+          onSubmit={handleSubmit}
+          className={`p-6 space-y-6 ${isEditing && activeTab !== 'geral' ? 'hidden' : ''}`}
+        >
           {error && (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
               {error}
