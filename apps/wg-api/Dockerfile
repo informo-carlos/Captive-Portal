@@ -21,14 +21,12 @@ RUN go mod tidy && \
     -o /out/wg-api .
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates wget && \
-    addgroup -S wgapi && adduser -S wgapi -G wgapi
+RUN apk add --no-cache ca-certificates wget
 COPY --from=builder /out/wg-api /usr/local/bin/wg-api
 
-# wg-api não precisa de root — o container `wireguard` (parent namespace)
-# já tem as caps NET_ADMIN; aqui só fazemos chamadas via netlink que
-# herdam as caps do namespace.
-USER wgapi
+# wg-api PRECISA rodar como root porque o cap NET_ADMIN passado via
+# docker compose só é efetivo no UID 0 (sem file capabilities). wgctrl-go
+# usa netlink pra enumerar wg0 — sem NET_ADMIN, retorna EPERM.
 
 EXPOSE 9999
 
