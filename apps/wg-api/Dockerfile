@@ -7,14 +7,13 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /src
 
-# Cache de deps separado do código pra acelerar rebuilds
-COPY go.mod go.sum ./
-RUN go mod download
-
+# Sem go.sum no repo — go mod tidy resolve deps no build
+COPY go.mod ./
 COPY *.go ./
 
 # CGO desabilitado pra binário estático; -ldflags strip pra reduzir tamanho
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/wg-api .
 
