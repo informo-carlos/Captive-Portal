@@ -7,6 +7,9 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /src
 
+# git é necessário pro `go mod tidy` clonar deps via VCS
+RUN apk add --no-cache git
+
 # Sem go.sum no repo — go mod tidy resolve deps no build
 COPY go.mod ./
 COPY *.go ./
