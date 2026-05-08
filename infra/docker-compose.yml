@@ -281,6 +281,8 @@ services:
     container_name: infra-wg-api
     restart: unless-stopped
     network_mode: "service:wireguard"  # compartilha namespace de rede com o WG
+    cap_add:
+      - NET_ADMIN  # wgctrl-go usa netlink, precisa pra ler interface wg0
     depends_on:
       - wireguard
     environment:
