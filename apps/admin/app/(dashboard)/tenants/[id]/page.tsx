@@ -11,6 +11,8 @@ import { useNotifications } from '../../../../lib/notification-context'
 import { TenantModal } from '../../../../components/tenant-modal'
 import { TenantFirewallHelp } from '../../../../components/tenant-firewall-help'
 import { RadiusOnlineBadge } from '../../../../components/radius-online-badge'
+import { VpnStatusBadge } from '../../../../components/vpn-status-badge'
+import { useVpnStatus } from '../../../../hooks/use-vpn-status'
 
 export default function TenantDetailPage() {
   const params = useParams()
@@ -87,6 +89,14 @@ export default function TenantDetailPage() {
       clearInterval(handle)
     }
   }, [tenant])
+
+  // VPN status — polling só quando tenant é sonicwall/lhm e vpn_enabled
+  const vpnEnabled =
+    tenant?.auth_mode === 'sonicwall' &&
+    tenant?.sonicwall_config?.mode === 'lhm' &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- campo vpn_enabled ainda não tipado no shared
+    !!(tenant as any).vpn_enabled
+  const { status: vpnStatus } = useVpnStatus(tenantId, vpnEnabled)
 
   const [retrying, setRetrying] = useState(false)
   const handleRetryProvisioning = async () => {
@@ -422,7 +432,7 @@ export default function TenantDetailPage() {
           )}
         </div>
 
-        {/* Serials */}
+        {/* Serials + VPN card */}
         <div className="space-y-6">
           <div className="glass-card rounded-xl">
             <div className="border-b border-t-default px-6 py-4">
@@ -449,6 +459,44 @@ export default function TenantDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Card VPN WireGuard — só exibe quando vpn_enabled */}
+          {vpnEnabled && vpnStatus && (
+            <div className="glass-card rounded-xl">
+              <div className="border-b border-t-default px-6 py-4">
+                <h2 className="text-sm font-semibold text-t-secondary">VPN WireGuard</h2>
+              </div>
+              <div className="px-6 py-4 space-y-3">
+                <VpnStatusBadge
+                  status={vpnStatus.vpn_status}
+                  lastHandshakeSecondsAgo={vpnStatus.last_handshake_seconds_ago}
+                />
+                {vpnStatus.vpn_peer_ip && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-t-label">Peer IP</span>
+                    <span className="font-mono text-t-secondary">{vpnStatus.vpn_peer_ip}</span>
+                  </div>
+                )}
+                {vpnStatus.last_handshake_seconds_ago !== undefined && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-t-label">Last hand.</span>
+                    <span className="text-t-secondary">
+                      há {vpnStatus.last_handshake_seconds_ago < 60
+                        ? `${vpnStatus.last_handshake_seconds_ago}s`
+                        : `${Math.floor(vpnStatus.last_handshake_seconds_ago / 60)}min`}
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(true)}
+                  className="mt-1 text-xs text-edge-cyan hover:underline"
+                >
+                  Ver detalhes →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
