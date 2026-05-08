@@ -10,6 +10,7 @@ import tenantRoutes from './routes/tenants'
 import sessionRoutes from './routes/sessions'
 import userRoutes from './routes/users'
 import auditLogRoutes from './routes/audit-logs'
+import vpnRoutes from './routes/admin/vpn'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -46,6 +47,7 @@ async function buildApp() {
   await fastify.register(sessionRoutes)
   await fastify.register(userRoutes)
   await fastify.register(auditLogRoutes)
+  await fastify.register(vpnRoutes)
 
   return fastify
 }

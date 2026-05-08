@@ -96,6 +96,13 @@ export async function createPortalContainer(tenant: PendingTenant): Promise<stri
     `NODE_ENV=production`,
   ]
 
+  // VPN — injeta a URL do mgmt via WireGuard tunnel quando o tenant tem VPN
+  // configurada. O container portal usa isso pra fazer POST LHM server-side
+  // em vez de delegar ao browser do usuário (ver docs/wireguard-vpn-architecture.md).
+  if (tenant.lhm_mgmt_lan_url) {
+    env.push(`LHM_MGMT_LAN_URL=${tenant.lhm_mgmt_lan_url}`)
+  }
+
   // RADIUS env vars — o listener sobe interno nas 1812/1813, o provisioner
   // cuida do port mapping externo via HostConfig.PortBindings (abaixo).
   // RADIUS_SESSION_TIMEOUT_SEC vem de session_duration_minutes do tenant

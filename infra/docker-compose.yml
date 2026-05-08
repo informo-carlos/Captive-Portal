@@ -80,6 +80,10 @@ services:
       JWT_EXPIRES_IN: 8h
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       NODE_ENV: production
+      WG_API_URL: http://wireguard:9999
+      WG_API_KEY: ${WG_API_KEY}
+      WG_VPS_PUBLIC_KEY: ${WG_VPS_PUBLIC_KEY}
+      WG_VPS_ENDPOINT: ${WG_VPS_ENDPOINT:-45.7.53.80:51820}
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,6 +151,12 @@ services:
       SONICWALL_LHM_PORT: ${TENANT_EXEMPLO_SW_LHM_PORT:-4043}
       SONICWALL_GUEST_SERVICE_USER: ${TENANT_EXEMPLO_SW_GUEST_SERVICE_USER:-}
       SONICWALL_GUEST_SERVICE_PASS: ${TENANT_EXEMPLO_SW_GUEST_SERVICE_PASS:-}
+      # VPN — URL base do mgmt via WireGuard (ex: https://198.18.0.5:4443/).
+      # Deixar em branco (default) = sem VPN, usa lhmPost legacy pro frontend.
+      # NOTA DE INFRA: quando definida, o container precisa estar na rede
+      # `external` (172.19.0.0/16) E ter rota 198.18.0.0/15 via 172.19.0.20
+      # (container infra-wireguard). Ver docs/wireguard-vpn-architecture.md 4.4.
+      LHM_MGMT_LAN_URL: ${TENANT_EXEMPLO_LHM_MGMT_LAN_URL:-}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       NODE_ENV: production
@@ -159,6 +169,10 @@ services:
         condition: service_healthy
     networks:
       - internal
+      # Adicionar `external` abaixo quando TENANT_EXEMPLO_LHM_MGMT_LAN_URL
+      # estiver definida, para que o container alcance o infra-wireguard
+      # (172.19.0.20) e faça rota pra 198.18.0.0/15.
+      # - external
     labels:
       - "captive.tenant=true"
       - "captive.port=29000"

@@ -20,6 +20,14 @@ export interface PortalConfig {
     lhmPort: number
     guestServiceUser: string
     guestServicePass: string
+    /**
+     * URL base do mgmt LHM via WireGuard VPN (ex: "https://198.18.0.5:4443/").
+     * Quando definida, o backend faz POST server-side direto pro SonicWall via
+     * tunnel em vez de devolver `lhmPost` instruction pro frontend.
+     * Injetada pelo provisioner a partir de `tenant.lhm_mgmt_lan_url`.
+     * Undefined = tenant sem VPN configurada (modo legado com lhmPost).
+     */
+    lhmMgmtLanUrl: string | undefined
   }
   radius: {
     enabled: boolean
@@ -111,6 +119,7 @@ export function loadConfig(): PortalConfig {
       lhmPort: parseIntEnv('SONICWALL_LHM_PORT', 4043),
       guestServiceUser: process.env['SONICWALL_GUEST_SERVICE_USER'] || '',
       guestServicePass: process.env['SONICWALL_GUEST_SERVICE_PASS'] || '',
+      lhmMgmtLanUrl: process.env['LHM_MGMT_LAN_URL'] || undefined,
     },
     radius: {
       enabled: radiusEnabled,
