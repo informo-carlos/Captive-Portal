@@ -1,8 +1,8 @@
 # swan-api — sidecar Go que gerencia conexões IPsec via swanctl CLI.
 #
-# Multi-stage:
-# 1) builder em golang:1.22-alpine compila binário estático
-# 2) runtime baseado em strongx509/strongswan (já tem swanctl CLI + daemon)
+# Roda no mesmo network namespace que o container `strongswan` (via
+# network_mode: "service:strongswan" no docker-compose), então precisa
+# do mesmo binário swanctl pra falar com o daemon charon.
 
 FROM golang:1.22-alpine AS builder
 WORKDIR /src
@@ -16,14 +16,11 @@ RUN go mod tidy && \
     -ldflags="-s -w" \
     -o /out/swan-api .
 
-# Imagem final: usa a mesma imagem do strongSwan pra ter swanctl + libs
-# (vamos rodar swan-api no namespace do container strongswan, então
-# precisa da CLI swanctl). Alternativa seria copiar swanctl pra alpine
-# mas exigiria todas as libs — fica mais limpo reusar a imagem oficial.
-FROM strongx509/strongswan:6.0.0
+# Runtime: Alpine + strongswan (pra ter swanctl CLI disponível)
+FROM alpine:3.19
+RUN apk add --no-cache strongswan wget
 COPY --from=builder /out/swan-api /usr/local/bin/swan-api
 
-# Pacotes mínimos pra healthcheck (wget já vem na strongx509 image)
 EXPOSE 9999
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost:9999/health || exit 1

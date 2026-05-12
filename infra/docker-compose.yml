@@ -239,7 +239,11 @@ services:
   # Conexões gerenciadas dinamicamente pelo sidecar swan-api (via swanctl).
   # Spec: docs/ipsec-vpn-architecture.md
   strongswan:
-    image: strongx509/strongswan:6.0.0
+    # Imagem custom baseada em alpine com strongswan + swanctl
+    build:
+      context: ../apps/swan-api
+      dockerfile: Dockerfile.strongswan
+    image: captive-portal-strongswan:local
     container_name: infra-strongswan
     restart: unless-stopped
     cap_add:
@@ -252,15 +256,9 @@ services:
     volumes:
       - strongswan_config:/etc/swanctl
     networks:
-      # `internal` pra admin-backend chamar o sidecar swan-api (que herda
-      # esta rede via network_mode: service:strongswan).
-      # `external` pra portal-cliente alcançar este container via
-      # 172.19.0.20 e adicionar rota pra 198.18.0.0/15.
       internal:
       external:
         ipv4_address: 172.19.0.20
-    # Mantém o daemon rodando — strongx509/strongswan tem entrypoint
-    # padrão que sobe ipsec/charon e fica em foreground.
 
   # ─── Sidecar HTTP que gerencia conexões IPsec via swanctl CLI ─────────
   # Roda no mesmo network namespace que `strongswan`. Cada peer (tenant) é

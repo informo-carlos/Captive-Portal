@@ -1,0 +1,55 @@
+# Imagem strongSwan custom — Alpine + strongswan + swanctl.
+# Roda o daemon `charon-systemd` em foreground.
+
+FROM alpine:3.19
+
+RUN apk add --no-cache \
+    strongswan \
+    iproute2 \
+    iptables \
+    bash && \
+    mkdir -p /etc/swanctl/conf.d /etc/swanctl/x509 /etc/swanctl/x509ca \
+             /etc/swanctl/pubkey /etc/swanctl/private /etc/swanctl/rsa
+
+# Config base — habilita charon, plugins necessários
+RUN cat > /etc/strongswan.conf <<'EOF'
+charon {
+    user = root
+    group = root
+    threads = 16
+    install_routes = yes
+    install_virtual_ip = no
+    port = 500
+    port_nat_t = 4500
+    plugins {
+        include strongswan.d/charon/*.conf
+    }
+}
+
+include strongswan.d/*.conf
+EOF
+
+# Entrypoint: carrega conf.d existentes, sobe charon em foreground
+RUN cat > /usr/local/bin/entrypoint.sh <<'EOF'
+#!/bin/sh
+set -e
+# inicia charon como daemon e mantem foreground
+ipsec start --nofork &
+CHARON_PID=$!
+
+# Espera o daemon subir
+for i in $(seq 1 10); do
+    swanctl --stats >/dev/null 2>&1 && break
+    sleep 1
+done
+
+# Carrega credenciais e conexões existentes (conf.d) se houver
+swanctl --load-creds 2>/dev/null || true
+swanctl --load-conns 2>/dev/null || true
+
+wait "$CHARON_PID"
+EOF
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 500/udp 4500/udp
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
