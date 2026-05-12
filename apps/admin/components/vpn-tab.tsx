@@ -717,6 +717,9 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
           ? `Remote ID "${remoteId}" aplicado. Aguardando primeiro handshake.`
           : 'Aguardando primeiro handshake (sem restrição de Remote ID).',
       })
+      // Limpa enableData pra UI sair de StatePending e mostrar
+      // StateAwaitingHandshake (sem mais expor PSK em tela).
+      setEnableData(null)
       refresh()
     } catch (err) {
       const msg = err instanceof ApiRequestError ? err.message : 'Falha ao aplicar config.'
@@ -798,8 +801,14 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
 
   const currentStatus = vpnStatus?.vpn_status ?? 'disabled'
 
-  // Se acabou de habilitar mas o polling ainda não trouxe 'pending', usa enableData
-  const isPending = currentStatus === 'pending' || (currentStatus === 'disabled' && enableData !== null)
+  // Mostra StatePending (com config IPsec visível) sempre que enableData existir
+  // — backend pode retornar 'awaiting_handshake' direto após /enable (peer já
+  // registrado no swan-api), mas a config + PSK ainda precisa ser mostrada
+  // pro admin pelo menos uma vez. Só sai dessa tela quando admin clica
+  // "Aguardar Handshake" (que limpa enableData) ou desabilita.
+  const isPending =
+    enableData !== null &&
+    (currentStatus === 'pending' || currentStatus === 'awaiting_handshake' || currentStatus === 'disabled')
 
   return (
     <div className="min-h-[200px]">
