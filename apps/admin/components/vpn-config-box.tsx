@@ -8,18 +8,17 @@ import { useNotifications } from '../lib/notification-context'
 interface VpnConfigBoxProps {
   config: {
     peerIp: string
-    endpoint: string
-    allowedIps: string
-    persistentKeepalive: number
+    vpsPublicIp: string
+    vpsTunnelIp: string
+    ikeProposals: string
     presharedKey: string
-    vpsPublicKey: string
   }
   tenantId: string
   tenantName: string
 }
 
 const SONICWALL_SETUP_URL =
-  'https://github.com/informo-carlos/Captive-Portal/blob/main/docs/wireguard-sonicwall-setup.md'
+  'https://github.com/informo-carlos/Captive-Portal/blob/main/docs/ipsec-sonicwall-setup.md'
 
 export function VpnConfigBox({ config, tenantId, tenantName }: VpnConfigBoxProps) {
   const { add: notify } = useNotifications()
@@ -30,7 +29,7 @@ export function VpnConfigBox({ config, tenantId, tenantName }: VpnConfigBoxProps
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `wireguard-${tenantName.toLowerCase().replace(/\s+/g, '-')}.conf`
+      a.download = `ipsec-${tenantName.toLowerCase().replace(/\s+/g, '-')}.txt`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -52,34 +51,23 @@ export function VpnConfigBox({ config, tenantId, tenantName }: VpnConfigBoxProps
   return (
     <div className="rounded-lg border border-t-default bg-t-input p-5 space-y-4">
       <p className="text-xs font-medium text-t-secondary">
-        Cole esta config na interface WireGuard do SonicOS:
+        Configure um Tunnel-Interface IPsec (IKEv2) no SonicOS com estes valores:
       </p>
 
       <div className="space-y-2 text-sm font-mono">
-        <ConfigRow label="Address" value={config.peerIp} />
-        <ConfigRow
-          label="Listen Port"
-          value="(deixe em branco — modo client)"
-          muted
-        />
-        <ConfigRow label="Endpoint" value={config.endpoint} />
-        <ConfigRow label="Allowed IPs" value={config.allowedIps} />
-        <ConfigRow
-          label="Persistent KA"
-          value={`${config.persistentKeepalive} segundos`}
-        />
+        <ConfigRow label="Remote Gateway" value={config.vpsPublicIp} />
+        <ConfigRow label="IKE Version" value="IKEv2" />
+        <ConfigRow label="Auth Method" value="Preshared Secret" />
+        <ConfigRow label="Peer IKE ID" value={config.vpsTunnelIp} />
+        <ConfigRow label="Local Network" value={`${config.peerIp}/32`} />
+        <ConfigRow label="Remote Network" value={`${config.vpsTunnelIp}/32`} />
+        <ConfigRow label="IKE Proposals" value={config.ikeProposals} muted />
       </div>
 
       <div className="space-y-3 border-t border-t-default pt-3">
         <MaskedKey
-          label="Pre-shared Key"
+          label="Pre-shared Secret"
           value={config.presharedKey}
-          revealable
-          copyable
-        />
-        <MaskedKey
-          label="VPS Public Key"
-          value={config.vpsPublicKey}
           revealable
           copyable
         />
@@ -91,7 +79,7 @@ export function VpnConfigBox({ config, tenantId, tenantName }: VpnConfigBoxProps
           onClick={handleDownload}
           className="flex items-center gap-1.5 rounded-lg border border-t-input px-3 py-1.5 text-xs font-medium text-t-secondary hover:bg-t-hover transition-colors"
         >
-          📥 Baixar .conf
+          📥 Baixar config (.txt)
         </button>
         <a
           href={SONICWALL_SETUP_URL}

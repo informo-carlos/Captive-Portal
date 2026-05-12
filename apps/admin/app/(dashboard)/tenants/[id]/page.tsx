@@ -460,11 +460,11 @@ export default function TenantDetailPage() {
             </div>
           </div>
 
-          {/* Card VPN WireGuard — só exibe quando vpn_enabled */}
+          {/* Card VPN IPsec — só exibe quando vpn_enabled */}
           {vpnEnabled && vpnStatus && (
             <div className="glass-card rounded-xl">
               <div className="border-b border-t-default px-6 py-4">
-                <h2 className="text-sm font-semibold text-t-secondary">VPN WireGuard</h2>
+                <h2 className="text-sm font-semibold text-t-secondary">VPN IPsec</h2>
               </div>
               <div className="px-6 py-4 space-y-3">
                 <VpnStatusBadge

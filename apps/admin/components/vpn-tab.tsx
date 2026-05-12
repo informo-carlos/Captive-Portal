@@ -7,7 +7,7 @@ import { VpnConfigBox } from './vpn-config-box'
 import { MaskedKey } from './masked-key'
 import {
   enableVpn,
-  submitVpnPublicKey,
+  submitVpnPeerConfig,
   testVpnLhm,
   regenerateVpnPsk,
   disableVpn,
@@ -91,7 +91,7 @@ function StateDisabled({
 }) {
   return (
     <div className="space-y-6 py-2">
-      <SectionHeader title="VPN WireGuard" />
+      <SectionHeader title="VPN IPsec" />
       <div className="space-y-4 text-sm text-t-muted leading-relaxed">
         <p>
           A VPN cria um túnel seguro entre nossa VPS e o SonicWall do cliente,
@@ -107,7 +107,7 @@ function StateDisabled({
         </div>
         <div>
           <a
-            href="https://github.com/informo-carlos/Captive-Portal/blob/main/docs/wireguard-sonicwall-setup.md"
+            href="https://github.com/informo-carlos/Captive-Portal/blob/main/docs/ipsec-sonicwall-setup.md"
             target="_blank"
             rel="noopener noreferrer"
             className="text-edge-cyan hover:underline text-sm"
@@ -131,98 +131,81 @@ function StatePending({
   enableData,
   tenantId,
   tenantName,
-  onPublicKeySubmit,
+  onRemoteIdSubmit,
   onCancelVpn,
   submitting,
 }: {
   enableData: VpnEnableResponse
   tenantId: string
   tenantName: string
-  onPublicKeySubmit: (key: string) => Promise<void>
+  onRemoteIdSubmit: (remoteId: string) => Promise<void>
   onCancelVpn: () => Promise<void>
   submitting: boolean
 }) {
-  const [publicKey, setPublicKey] = useState('')
-  const [keyError, setKeyError] = useState('')
-
-  const handleSubmit = async () => {
-    setKeyError('')
-    const trimmed = publicKey.trim()
-    if (!trimmed) {
-      setKeyError('Cole a chave pública do SonicWall antes de continuar.')
-      return
-    }
-    // Validação básica: WireGuard public key = 44 chars base64
-    if (!/^[A-Za-z0-9+/]{43}=$/g.test(trimmed)) {
-      setKeyError('Formato inválido. A chave pública WireGuard deve ter 44 caracteres base64.')
-      return
-    }
-    await onPublicKeySubmit(trimmed)
-  }
+  const [remoteId, setRemoteId] = useState('')
 
   return (
     <div className="space-y-5 py-2">
       <SectionHeader
-        title="VPN WireGuard"
+        title="VPN IPsec"
         badge={<VpnStatusBadge status="pending" />}
       />
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400">
         <span className="shrink-0">⚠</span>
-        <span>VPN provisionada na VPS. Configure agora o SonicWall:</span>
+        <span>VPN provisionada na VPS. Configure agora o SonicWall (Tunnel-Interface IPsec / IKEv2 / PSK):</span>
       </div>
 
       {/* Passo 1 */}
       <div className="rounded-lg border border-t-default bg-t-card/50 p-4 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-t-label">
-          1. Cole esta config na interface WireGuard do SonicOS
+          1. Configure o Tunnel-Interface IPsec no SonicOS com os valores abaixo
         </p>
         <VpnConfigBox
           config={{
             peerIp: enableData.vpn_peer_ip,
-            endpoint: enableData.endpoint,
-            allowedIps: enableData.allowed_ips,
-            persistentKeepalive: enableData.persistent_keepalive,
+            vpsPublicIp: enableData.vps_public_ip,
+            vpsTunnelIp: enableData.vps_tunnel_ip,
+            ikeProposals: enableData.ike_proposals,
             presharedKey: enableData.preshared_key,
-            vpsPublicKey: enableData.vps_public_key,
           }}
           tenantId={tenantId}
           tenantName={tenantName}
         />
       </div>
 
-      {/* Passo 2 */}
+      {/* Passo 2 — opcional */}
       <div className="rounded-lg border border-t-default bg-t-card/50 p-4 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-t-label">
-          2. Após o SonicWall gerar a chave pública dele, cole abaixo
+          2. (Opcional) Restringir Remote IKE ID
+        </p>
+        <p className="text-xs text-t-muted leading-relaxed">
+          Por padrão, qualquer Remote IKE ID é aceito desde que a PSK bata. Se quiser
+          restringir só ao IP/FQDN específico do firewall do cliente, informe aqui.
         </p>
         <div>
           <label className="block text-[11px] font-medium uppercase tracking-wider text-t-label mb-1">
-            Public Key do SonicWall
+            Remote IKE ID (opcional)
           </label>
-          <textarea
-            value={publicKey}
-            onChange={(e) => {
-              setPublicKey(e.target.value)
-              setKeyError('')
-            }}
-            rows={3}
-            className={`w-full rounded-lg border bg-t-input px-3 py-2 text-sm font-mono text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40 resize-none ${
-              keyError ? 'border-red-500/50' : 'border-t-input'
-            }`}
-            placeholder="Cole aqui a chave pública WireGuard do SonicWall (44 chars base64)"
-            aria-label="Chave pública do SonicWall"
+          <input
+            type="text"
+            value={remoteId}
+            onChange={(e) => setRemoteId(e.target.value)}
+            className="w-full rounded-lg border border-t-input bg-t-input px-3 py-2 text-sm font-mono text-t-primary placeholder:text-t-placeholder focus:outline-none focus:ring-1 focus:ring-edge-cyan/40"
+            placeholder="ex: 203.0.113.5  ou  firewall.cliente.com.br  (deixe vazio = aceitar qualquer)"
+            aria-label="Remote IKE ID opcional"
           />
-          {keyError && (
-            <p className="mt-1 text-xs text-red-400">{keyError}</p>
-          )}
         </div>
         <div className="flex items-center justify-end gap-3">
           <ActionButton onClick={onCancelVpn} loading={submitting} variant="warning">
             Cancelar VPN
           </ActionButton>
-          <ActionButton onClick={handleSubmit} loading={submitting} variant="primary">
-            Salvar e Conectar →
+          <ActionButton
+            onClick={() => onRemoteIdSubmit(remoteId.trim())}
+            loading={submitting}
+            variant="primary"
+          >
+            {remoteId.trim() ? 'Aplicar e Aguardar Handshake →' : 'Aguardar Handshake (sem restrição) →'}
           </ActionButton>
         </div>
       </div>
@@ -242,7 +225,7 @@ function StateAwaitingHandshake({
   return (
     <div className="space-y-5 py-2">
       <SectionHeader
-        title="VPN WireGuard"
+        title="VPN IPsec"
         badge={<VpnStatusBadge status="awaiting_handshake" />}
       />
       <div className="flex items-center gap-3 text-sm text-t-muted">
@@ -251,7 +234,7 @@ function StateAwaitingHandshake({
       </div>
       <div className="rounded-lg border border-t-default bg-t-input p-4 space-y-2 text-xs text-t-label">
         <p className="font-medium text-t-secondary mb-2">Verifique no SonicOS que:</p>
-        <p>✓ A interface WireGuard está habilitada (Enable = ON)</p>
+        <p>✓ O Tunnel-Interface IPsec está habilitado (Enable = ON)</p>
         <p>✓ A regra de Access Rule WAN→Tunnel permite UDP 51820</p>
         <p>✓ O cliente tem rota pra Internet (saída UDP)</p>
       </div>
@@ -301,7 +284,7 @@ function StateConnected({
   return (
     <div className="space-y-5 py-2">
       <SectionHeader
-        title="VPN WireGuard"
+        title="VPN IPsec"
         badge={
           <VpnStatusBadge
             status="connected"
@@ -407,7 +390,7 @@ function StateDisconnected({
   return (
     <div className="space-y-5 py-2">
       <SectionHeader
-        title="VPN WireGuard"
+        title="VPN IPsec"
         badge={
           <VpnStatusBadge
             status="disconnected"
@@ -453,7 +436,7 @@ function StateError({
   return (
     <div className="space-y-5 py-2">
       <SectionHeader
-        title="VPN WireGuard"
+        title="VPN IPsec"
         badge={<VpnStatusBadge status="error" />}
       />
       <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400 space-y-3">
@@ -653,7 +636,7 @@ function RegeneratePskModal({
         </div>
         <MaskedKey label="Nova PSK" value={newPsk} revealable copyable />
         <p className="mt-3 text-xs text-t-placeholder">
-          No SonicOS: Network → WireGuard → editar peer → atualizar Pre-Shared Key → Apply.
+          No SonicOS: Network → IPsec VPN → Tunnel-Interface → editar → atualizar Pre-shared Secret → Apply.
         </p>
         <div className="mt-5 flex justify-end">
           <button
@@ -705,20 +688,22 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
     }
   }
 
-  const handlePublicKeySubmit = async (key: string) => {
+  const handleRemoteIdSubmit = async (remoteId: string) => {
     setSubmittingKey(true)
     try {
-      await submitVpnPublicKey(tenantId, key)
+      await submitVpnPeerConfig(tenantId, remoteId || undefined)
       notify({
         type: 'system',
-        action: 'vpn_key_submitted',
+        action: 'vpn_peer_config_submitted',
         status: 'completed',
-        message: 'Chave pública salva. Aguardando primeiro handshake.',
+        message: remoteId
+          ? `Remote ID "${remoteId}" aplicado. Aguardando primeiro handshake.`
+          : 'Aguardando primeiro handshake (sem restrição de Remote ID).',
       })
       refresh()
     } catch (err) {
-      const msg = err instanceof ApiRequestError ? err.message : 'Falha ao salvar chave.'
-      notify({ type: 'system', action: 'vpn_key_submit', status: 'failed', message: msg })
+      const msg = err instanceof ApiRequestError ? err.message : 'Falha ao aplicar config.'
+      notify({ type: 'system', action: 'vpn_peer_config', status: 'failed', message: msg })
     } finally {
       setSubmittingKey(false)
     }
@@ -819,7 +804,7 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
           enableData={enableData}
           tenantId={tenantId}
           tenantName={tenantName}
-          onPublicKeySubmit={handlePublicKeySubmit}
+          onRemoteIdSubmit={handleRemoteIdSubmit}
           onCancelVpn={handleCancelVpn}
           submitting={submittingKey}
         />
@@ -869,7 +854,7 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
 
       {confirmDisable && (
         <ConfirmModal
-          title="Desabilitar VPN WireGuard"
+          title="Desabilitar VPN IPsec"
           message="Vai cortar acesso à internet dos guests do cliente até reconfigurar. Tem certeza?"
           confirmLabel="Sim, desabilitar VPN"
           onConfirm={handleDisable}

@@ -1,28 +1,58 @@
+/**
+ * Endpoints admin pra gerenciar VPN IPsec por tenant.
+ *
+ * Backend stack: Fastify + Postgres + swan-api (sidecar Go que controla
+ * strongSwan via swanctl). Este módulo é a camada de orquestração:
+ *   - aloca IPs no range 198.18.0.0/15
+ *   - gera PSK aleatória
+ *   - persiste estado no Postgres
+ *   - chama swan-api pra adicionar/remover peers
+ *   - faz POST de teste pelo túnel pra validar conectividade
+ *
+ * Spec: docs/wireguard-frontend-spec.md (mesmo contrato — substituiu WG por
+ * IPsec internamente, UI renomeia labels mas API consome igual).
+ */
+
 import type { FastifyPluginAsync } from 'fastify'
 import https from 'node:https'
 import { encrypt, decrypt } from '../../services/crypto'
-import { allocateNextPeerIp } from '../../services/wireguard/allocator'
-import { generatePsk } from '../../services/wireguard/psk'
+import { allocateNextPeerIp } from '../../services/ipsec/allocator'
+import { generatePsk } from '../../services/ipsec/psk'
 import {
   addPeer,
   removePeer,
   getPeer,
-  getVpsPublicKey,
-  getVpsEndpoint,
-} from '../../services/wireguard/index'
-import type { TenantVpnRow } from '../../services/wireguard/types'
+  getVpsPublicIp,
+  getIkeProposals,
+} from '../../services/ipsec/index'
 
-// Regex para validar chave pública WireGuard: 43 chars base64 + '='
-const PUBLIC_KEY_RE = /^[A-Za-z0-9+/]{43}=$/
+interface TenantVpnRow {
+  id: string
+  name: string
+  vpn_enabled: boolean
+  vpn_peer_ip: string | null
+  vpn_remote_id: string | null
+  vpn_preshared_key_enc: string | null
+  vpn_status: string | null
+  vpn_endpoint_observed: string | null
+  vpn_last_handshake: Date | null
+  vpn_transfer_rx_bytes: number | null
+  vpn_transfer_tx_bytes: number | null
+  lhm_mgmt_lan_url: string | null
+}
+
+// peer_id usado no swan-api: "tenant_<UUID sem hífen>" (regex [A-Za-z0-9_-]{1,64})
+function peerIdForTenant(tenantId: string): string {
+  return `tenant_${tenantId.replace(/-/g, '')}`
+}
 
 const vpnRoutes: FastifyPluginAsync = async (fastify) => {
   const encryptionKey = fastify.config.encryptionKey
 
-  /** Busca tenant pelo id e retorna campos VPN. */
   async function fetchTenant(id: string): Promise<TenantVpnRow | null> {
     const r = await fastify.db.query<TenantVpnRow>(
       `SELECT id, name,
-              vpn_enabled, vpn_peer_ip, vpn_public_key,
+              vpn_enabled, vpn_peer_ip, vpn_remote_id,
               vpn_preshared_key_enc, vpn_status,
               vpn_endpoint_observed, vpn_last_handshake,
               vpn_transfer_rx_bytes, vpn_transfer_tx_bytes,
@@ -45,16 +75,22 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
     }
     if (tenant.vpn_enabled) {
-      return reply.code(409).send({ error: 'vpn_already_enabled', message: 'VPN já está habilitada para este tenant.', code: 409 })
+      return reply.code(409).send({
+        error: 'vpn_already_enabled',
+        message: 'VPN já está habilitada para este tenant.',
+        code: 409,
+      })
     }
 
     const client = await fastify.db.connect()
+    let peerIp: string
+    let psk: string
     try {
-      const peerIp = await allocateNextPeerIp(client)
-      const psk = generatePsk()
-      const encPsk = encrypt(psk, encryptionKey)
-      const lhmUrl = `https://${peerIp}:4443/`
-      const vpsEndpoint = getVpsEndpoint()
+      await client.query('BEGIN')
+      peerIp = await allocateNextPeerIp(client)
+      psk = generatePsk()
+      const pskEnc = encrypt(psk, encryptionKey)
+      const lhmMgmtLanUrl = `https://${peerIp}:4443/`
 
       await client.query(
         `UPDATE tenants SET
@@ -63,123 +99,87 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
            vpn_preshared_key_enc = $2,
            vpn_status = 'pending',
            lhm_mgmt_lan_url = $3,
-           updated_at = CURRENT_TIMESTAMP
+           updated_at = NOW()
          WHERE id = $4`,
-        [peerIp, encPsk, lhmUrl, id],
+        [peerIp, pskEnc, lhmMgmtLanUrl, id],
       )
-
-      await fastify.logAudit({
-        adminUserId: request.admin.id,
-        action: 'vpn_enabled',
-        payload: { tenant_id: id, vpn_peer_ip: peerIp },
-        ipAddress: request.ip,
-      })
-
-      return reply.code(200).send({
-        vpn_peer_ip: `${peerIp}/32`,
-        endpoint: vpsEndpoint,
-        allowed_ips: '198.18.0.1/32',
-        persistent_keepalive: 25,
-        preshared_key: psk,
-        vps_public_key: getVpsPublicKey(),
-        lhm_mgmt_lan_url: lhmUrl,
-        vpn_status: 'pending',
-      })
-    } catch (err: unknown) {
-      const anyErr = err as { code?: string; message?: string }
-      if (anyErr.code === 'vpn_range_exhausted') {
-        return reply.code(503).send({ error: 'vpn_range_exhausted', message: 'Range de IPs VPN esgotado.', code: 503 })
-      }
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
       throw err
     } finally {
       client.release()
     }
-  })
 
-  // ─── POST /admin/tenants/:id/vpn/peer-public-key ─────────────────────
-  fastify.post('/admin/tenants/:id/vpn/peer-public-key', {
-    preHandler: [fastify.authenticate, fastify.requireRole('admin')],
-    schema: {
-      body: {
-        type: 'object',
-        required: ['public_key'],
-        properties: {
-          public_key: { type: 'string', minLength: 44, maxLength: 44 },
-        },
-      },
-    },
-  }, async (request, reply) => {
-    const { id } = request.params as { id: string }
-    const { public_key } = request.body as { public_key: string }
-
-    if (!PUBLIC_KEY_RE.test(public_key)) {
-      return reply.code(422).send({
-        error: 'invalid_public_key',
-        message: 'Formato de chave inválido. Esperado: 44 caracteres base64 (Curve25519).',
-        code: 422,
-      })
-    }
-
-    const tenant = await fetchTenant(id)
-    if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
-    }
-    if (!tenant.vpn_enabled || !tenant.vpn_peer_ip || !tenant.vpn_preshared_key_enc) {
-      return reply.code(409).send({
-        error: 'vpn_not_enabled',
-        message: 'VPN não está habilitada ou não foi provisionada para este tenant.',
-        code: 409,
-      })
-    }
-    if (
-      tenant.vpn_status !== 'pending' &&
-      tenant.vpn_status !== 'awaiting_handshake'
-    ) {
-      return reply.code(409).send({
-        error: 'invalid_vpn_state',
-        message: `Operação não permitida no estado atual: ${tenant.vpn_status}.`,
-        code: 409,
-      })
-    }
-
-    const psk = decrypt(tenant.vpn_preshared_key_enc, encryptionKey)
-
+    // Adiciona peer no strongSwan já — aceita qualquer remote_id (%any) por
+    // padrão. Quando admin enviar `remote_id` específico via /peer-config,
+    // a config é regravada com restrição.
+    const peerId = peerIdForTenant(id)
     try {
-      await addPeer({
-        publicKey: public_key,
-        presharedKey: psk,
-        allowedIps: `${tenant.vpn_peer_ip}/32`,
-      })
-    } catch (err: unknown) {
-      request.log.error({ err }, 'wg-api addPeer falhou')
+      await addPeer({ peerId, peerIp, psk, remoteId: undefined })
       await fastify.db.query(
-        `UPDATE tenants SET vpn_status = 'error', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        `UPDATE tenants SET vpn_status = 'awaiting_handshake' WHERE id = $1`,
+        [id],
+      )
+    } catch (err) {
+      request.log.error({ err: (err as Error).message }, 'swan_api_addpeer_failed')
+      await fastify.db.query(
+        `UPDATE tenants SET vpn_status = 'error' WHERE id = $1`,
         [id],
       )
       return reply.code(502).send({
-        error: 'wg_api_error',
-        message: 'Falha ao registrar peer no servidor WireGuard.',
+        error: 'swan_api_failed',
+        message: 'Falha ao registrar peer no strongSwan.',
+        details: (err as Error).message,
         code: 502,
       })
     }
 
-    await fastify.db.query(
-      `UPDATE tenants SET
-         vpn_public_key = $1,
-         vpn_status = 'awaiting_handshake',
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [public_key, id],
-    )
+    request.log.info({ tenantId: id, peerIp }, 'vpn_enabled')
 
-    await fastify.logAudit({
-      adminUserId: request.admin.id,
-      action: 'vpn_peer_registered',
-      payload: { tenant_id: id, public_key_prefix: public_key.slice(0, 8) },
-      ipAddress: request.ip,
+    return reply.code(200).send({
+      vpn_peer_ip: peerIp,
+      ike_proposals: getIkeProposals(),
+      preshared_key: psk, // mostrado UMA vez
+      vps_public_ip: getVpsPublicIp(),
+      vps_tunnel_ip: '198.18.0.1',
+      lhm_mgmt_lan_url: `https://${peerIp}:4443/`,
+      vpn_status: 'awaiting_handshake',
     })
+  })
 
-    return reply.code(200).send({ vpn_status: 'awaiting_handshake' })
+  // ─── POST /admin/tenants/:id/vpn/peer-config ─────────────────────────
+  // Admin envia (opcional) `remote_id` específico do firewall pra restringir.
+  fastify.post('/admin/tenants/:id/vpn/peer-config', {
+    preHandler: [fastify.authenticate, fastify.requireRole('admin')],
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = (request.body ?? {}) as { remote_id?: string }
+    const remoteId = body.remote_id?.trim() || undefined
+
+    const tenant = await fetchTenant(id)
+    if (!tenant || !tenant.vpn_enabled) {
+      return reply.code(404).send({ error: 'vpn_not_enabled', message: 'VPN não habilitada.', code: 404 })
+    }
+    if (!tenant.vpn_peer_ip || !tenant.vpn_preshared_key_enc) {
+      return reply.code(409).send({ error: 'vpn_incomplete', message: 'Config VPN incompleta.', code: 409 })
+    }
+    const psk = decrypt(tenant.vpn_preshared_key_enc, encryptionKey)
+    const peerId = peerIdForTenant(id)
+    try {
+      await addPeer({ peerId, peerIp: tenant.vpn_peer_ip, psk, remoteId })
+      await fastify.db.query(
+        `UPDATE tenants SET vpn_remote_id = $1, vpn_status = 'awaiting_handshake', updated_at = NOW() WHERE id = $2`,
+        [remoteId ?? null, id],
+      )
+    } catch (err) {
+      return reply.code(502).send({
+        error: 'swan_api_failed',
+        message: (err as Error).message,
+        code: 502,
+      })
+    }
+    return reply.send({ vpn_status: 'awaiting_handshake', vpn_remote_id: remoteId ?? null })
   })
 
   // ─── GET /admin/tenants/:id/vpn/status ───────────────────────────────
@@ -187,86 +187,63 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
     const tenant = await fetchTenant(id)
     if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
+      return reply.code(404).send({ error: 'not_found', code: 404 })
     }
-
     if (!tenant.vpn_enabled) {
-      return reply.code(200).send({ vpn_status: 'disabled' })
+      return reply.send({ vpn_status: 'disabled' })
     }
 
-    if (!tenant.vpn_public_key) {
-      return reply.code(200).send({
-        vpn_status: tenant.vpn_status ?? 'pending',
-        vpn_peer_ip: tenant.vpn_peer_ip,
-        endpoint_observed: tenant.vpn_endpoint_observed,
-        last_handshake_seconds_ago: null,
-        transfer_rx_bytes: null,
-        transfer_tx_bytes: null,
-        lhm_mgmt_lan_url: tenant.lhm_mgmt_lan_url,
-      })
-    }
-
-    // Consulta wg-api para dados em tempo real
-    let computedStatus = tenant.vpn_status ?? 'awaiting_handshake'
-    let endpointObserved = tenant.vpn_endpoint_observed
-    let lastHandshakeSecondsAgo: number | null = null
-    let rxBytes: number | null = null
-    let txBytes: number | null = null
-
+    const peerId = peerIdForTenant(id)
+    let info = null
     try {
-      const peer = await getPeer(tenant.vpn_public_key)
-      if (peer) {
-        const nowSec = Math.floor(Date.now() / 1000)
-        rxBytes = peer.rxBytes
-        txBytes = peer.txBytes
-        endpointObserved = peer.endpoint ?? tenant.vpn_endpoint_observed
-
-        if (peer.lastHandshakeUnix === 0) {
-          computedStatus = 'awaiting_handshake'
-        } else {
-          lastHandshakeSecondsAgo = nowSec - peer.lastHandshakeUnix
-          computedStatus = lastHandshakeSecondsAgo < 180 ? 'connected' : 'disconnected'
-        }
-
-        // Atualiza banco (best effort — falha não impede a resposta)
-        const lastHandshakeDate = peer.lastHandshakeUnix > 0
-          ? new Date(peer.lastHandshakeUnix * 1000).toISOString()
-          : null
-
-        fastify.db
-          .query(
-            `UPDATE tenants SET
-               vpn_status = $1,
-               vpn_endpoint_observed = $2,
-               vpn_last_handshake = $3,
-               vpn_transfer_rx_bytes = $4,
-               vpn_transfer_tx_bytes = $5,
-               updated_at = CURRENT_TIMESTAMP
-             WHERE id = $6`,
-            [computedStatus, endpointObserved, lastHandshakeDate, rxBytes, txBytes, id],
-          )
-          .catch((err: unknown) => {
-            request.log.warn({ err }, 'vpn status: falha ao atualizar banco (best effort)')
-          })
-      }
-    } catch (err: unknown) {
-      request.log.warn({ err }, 'vpn status: falha ao consultar wg-api — usando dados do banco')
-      // Usa dados cached do banco
-      if (tenant.vpn_last_handshake) {
-        lastHandshakeSecondsAgo = Math.floor(
-          (Date.now() - new Date(tenant.vpn_last_handshake).getTime()) / 1000,
-        )
-      }
-      rxBytes = tenant.vpn_transfer_rx_bytes !== null ? parseInt(tenant.vpn_transfer_rx_bytes, 10) : null
-      txBytes = tenant.vpn_transfer_tx_bytes !== null ? parseInt(tenant.vpn_transfer_tx_bytes, 10) : null
+      info = await getPeer(peerId)
+    } catch (err) {
+      request.log.warn({ err: (err as Error).message }, 'swan_status_fetch_failed')
     }
 
-    return reply.code(200).send({
-      vpn_status: computedStatus,
+    const nowSec = Math.floor(Date.now() / 1000)
+    let status: string = tenant.vpn_status ?? 'pending'
+    let lastHandshakeSecondsAgo: number | undefined
+    let rxBytes: number | undefined
+    let txBytes: number | undefined
+    let endpointObserved: string | undefined
+
+    if (info) {
+      if (info.state === 'established') {
+        const secsAgo = info.last_handshake_unix ? nowSec - info.last_handshake_unix : 0
+        status = secsAgo < 180 ? 'connected' : 'disconnected'
+        lastHandshakeSecondsAgo = secsAgo
+      } else if (info.state === 'connecting') {
+        status = 'awaiting_handshake'
+      } else {
+        status = 'awaiting_handshake'
+      }
+      rxBytes = info.rx_bytes
+      txBytes = info.tx_bytes
+      endpointObserved = info.remote_host
+    }
+
+    fastify.db
+      .query(
+        `UPDATE tenants SET
+           vpn_status = $1,
+           vpn_endpoint_observed = COALESCE($2, vpn_endpoint_observed),
+           vpn_transfer_rx_bytes = COALESCE($3, vpn_transfer_rx_bytes),
+           vpn_transfer_tx_bytes = COALESCE($4, vpn_transfer_tx_bytes),
+           vpn_last_status_check = NOW()
+         WHERE id = $5`,
+        [status, endpointObserved ?? null, rxBytes ?? null, txBytes ?? null, id],
+      )
+      .catch((err) =>
+        request.log.warn({ err: err instanceof Error ? err.message : String(err) }, 'vpn_status_persist_failed'),
+      )
+
+    return reply.send({
+      vpn_status: status,
       vpn_peer_ip: tenant.vpn_peer_ip,
+      vpn_remote_id: tenant.vpn_remote_id,
       endpoint_observed: endpointObserved,
       last_handshake_seconds_ago: lastHandshakeSecondsAgo,
       transfer_rx_bytes: rxBytes,
@@ -280,37 +257,15 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate, fastify.requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
     const tenant = await fetchTenant(id)
-    if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
+    if (!tenant?.lhm_mgmt_lan_url) {
+      return reply.code(404).send({ error: 'no_lhm_url', code: 404 })
     }
-    if (!tenant.lhm_mgmt_lan_url) {
-      return reply.code(422).send({
-        error: 'lhm_url_missing',
-        message: 'lhm_mgmt_lan_url não configurada para este tenant.',
-        code: 422,
-      })
-    }
-
-    const agent = new https.Agent({ rejectUnauthorized: false })
-
-    let testUrl: string
-    try {
-      testUrl = new URL('lhmapi/externalAAAGuest', tenant.lhm_mgmt_lan_url).toString()
-    } catch {
-      return reply.code(422).send({
-        error: 'invalid_lhm_url',
-        message: `lhm_mgmt_lan_url inválida: ${tenant.lhm_mgmt_lan_url}`,
-        code: 422,
-      })
-    }
-
+    const url = new URL('lhmapi/externalAAAGuest', tenant.lhm_mgmt_lan_url)
     const start = Date.now()
+    const agent = new https.Agent({ rejectUnauthorized: false })
     try {
-      // Node 22 fetch aceita `agent` como extensão, mas os tipos DOM não incluem.
-      // Usamos Record<string, unknown> pra passar a opção sem violar o strict.
-      const fetchOpts: Record<string, unknown> = {
+      const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,34 +283,22 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
             cycleMaxTx: '0',
           },
         }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         agent,
-        signal: AbortSignal.timeout(10_000),
-      }
-      const r = await fetch(testUrl, fetchOpts as RequestInit)
-
+      } as any)
       const body = await r.text()
-      const dur = Date.now() - start
-
-      return reply.code(200).send({
+      return reply.send({
         reachable: true,
         http_status: r.status,
         response_body: body.slice(0, 500),
-        duration_ms: dur,
+        duration_ms: Date.now() - start,
       })
-    } catch (err: unknown) {
-      const dur = Date.now() - start
-      const e = err as { code?: string; message?: string; name?: string }
-      const errorCode =
-        e.code ?? (e.name === 'AbortError' ? 'TIMEOUT' : 'UNKNOWN')
-      const details = e.message ?? String(err)
-
-      request.log.warn({ err, tenant_id: id }, 'test-lhm: não alcançou SonicWall')
-
+    } catch (err) {
       return reply.code(502).send({
         reachable: false,
-        error: errorCode,
-        details,
-        duration_ms: dur,
+        error: (err as Error).name,
+        details: (err as Error).message,
+        duration_ms: Date.now() - start,
       })
     }
   })
@@ -365,70 +308,28 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate, fastify.requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
     const tenant = await fetchTenant(id)
-    if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
+    if (!tenant?.vpn_enabled || !tenant.vpn_peer_ip) {
+      return reply.code(404).send({ error: 'vpn_not_enabled', code: 404 })
     }
-    if (!tenant.vpn_enabled || !tenant.vpn_peer_ip) {
-      return reply.code(409).send({
-        error: 'vpn_not_enabled',
-        message: 'VPN não está habilitada para este tenant.',
-        code: 409,
-      })
-    }
-
-    const newPsk = generatePsk()
-    const encNewPsk = encrypt(newPsk, encryptionKey)
-
-    // Remove peer antigo (se existia) e re-adiciona com nova PSK
-    if (tenant.vpn_public_key) {
-      try {
-        await removePeer(tenant.vpn_public_key)
-      } catch (err: unknown) {
-        request.log.warn({ err }, 'regenerate-psk: falha ao remover peer antigo (continuando)')
-      }
-
-      try {
-        await addPeer({
-          publicKey: tenant.vpn_public_key,
-          presharedKey: newPsk,
-          allowedIps: `${tenant.vpn_peer_ip}/32`,
-        })
-      } catch (err: unknown) {
-        request.log.error({ err }, 'regenerate-psk: falha ao re-adicionar peer com nova PSK')
-        await fastify.db.query(
-          `UPDATE tenants SET vpn_status = 'error', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [id],
-        )
-        return reply.code(502).send({
-          error: 'wg_api_error',
-          message: 'Falha ao atualizar peer no servidor WireGuard.',
-          code: 502,
-        })
-      }
-    }
-
+    const psk = generatePsk()
+    const pskEnc = encrypt(psk, encryptionKey)
     await fastify.db.query(
-      `UPDATE tenants SET
-         vpn_preshared_key_enc = $1,
-         vpn_status = 'awaiting_handshake',
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [encNewPsk, id],
+      `UPDATE tenants SET vpn_preshared_key_enc = $1, vpn_status = 'awaiting_handshake', updated_at = NOW() WHERE id = $2`,
+      [pskEnc, id],
     )
-
-    await fastify.logAudit({
-      adminUserId: request.admin.id,
-      action: 'vpn_psk_regenerated',
-      payload: { tenant_id: id },
-      ipAddress: request.ip,
-    })
-
-    return reply.code(200).send({
-      preshared_key: newPsk,
-      vpn_status: 'awaiting_handshake',
-    })
+    const peerId = peerIdForTenant(id)
+    try {
+      await addPeer({
+        peerId,
+        peerIp: tenant.vpn_peer_ip,
+        psk,
+        remoteId: tenant.vpn_remote_id ?? undefined,
+      })
+    } catch (err) {
+      return reply.code(502).send({ error: 'swan_api_failed', details: (err as Error).message, code: 502 })
+    }
+    return reply.send({ preshared_key: psk, vpn_status: 'awaiting_handshake' })
   })
 
   // ─── DELETE /admin/tenants/:id/vpn ───────────────────────────────────
@@ -436,26 +337,23 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate, fastify.requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
     const tenant = await fetchTenant(id)
     if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
+      return reply.code(404).send({ error: 'not_found', code: 404 })
     }
-
-    // Remove peer do WG (best effort — 404 é ok)
-    if (tenant.vpn_public_key) {
+    if (tenant.vpn_enabled) {
+      const peerId = peerIdForTenant(id)
       try {
-        await removePeer(tenant.vpn_public_key)
-      } catch (err: unknown) {
-        request.log.warn({ err }, 'vpn disable: falha ao remover peer (continuando)')
+        await removePeer(peerId)
+      } catch (err) {
+        request.log.warn({ err: (err as Error).message }, 'swan_remove_failed_continuing')
       }
     }
-
     await fastify.db.query(
       `UPDATE tenants SET
          vpn_enabled = false,
          vpn_peer_ip = NULL,
-         vpn_public_key = NULL,
+         vpn_remote_id = NULL,
          vpn_preshared_key_enc = NULL,
          vpn_status = 'disabled',
          vpn_endpoint_observed = NULL,
@@ -463,77 +361,54 @@ const vpnRoutes: FastifyPluginAsync = async (fastify) => {
          vpn_transfer_rx_bytes = NULL,
          vpn_transfer_tx_bytes = NULL,
          lhm_mgmt_lan_url = NULL,
-         updated_at = CURRENT_TIMESTAMP
+         updated_at = NOW()
        WHERE id = $1`,
       [id],
     )
-
-    await fastify.logAudit({
-      adminUserId: request.admin.id,
-      action: 'vpn_disabled',
-      payload: { tenant_id: id },
-      ipAddress: request.ip,
-    })
-
     return reply.code(204).send()
   })
 
   // ─── GET /admin/tenants/:id/vpn/config-download ──────────────────────
   fastify.get('/admin/tenants/:id/vpn/config-download', {
-    preHandler: [fastify.authenticate],
+    preHandler: [fastify.authenticate, fastify.requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
     const tenant = await fetchTenant(id)
-    if (!tenant) {
-      return reply.code(404).send({ error: 'not_found', message: 'Tenant não encontrado.', code: 404 })
+    if (!tenant?.vpn_enabled || !tenant.vpn_peer_ip || !tenant.vpn_preshared_key_enc) {
+      return reply.code(404).send({ error: 'vpn_not_enabled', code: 404 })
     }
-    if (!tenant.vpn_enabled || !tenant.vpn_peer_ip || !tenant.vpn_preshared_key_enc) {
-      return reply.code(409).send({
-        error: 'vpn_not_provisioned',
-        message: 'VPN não está provisionada para este tenant.',
-        code: 409,
-      })
-    }
+    const psk = decrypt(tenant.vpn_preshared_key_enc, encryptionKey)
+    const conf = `# IPsec config para tenant ${tenant.name}
+# Cole no SonicWall como Tunnel-Interface IPsec / Site-to-Site.
+# Preencha os campos correspondentes na UI do SonicOS.
 
-    let psk: string
-    try {
-      psk = decrypt(tenant.vpn_preshared_key_enc, encryptionKey)
-    } catch {
-      return reply.code(500).send({
-        error: 'decrypt_error',
-        message: 'Falha ao descriptografar PSK.',
-        code: 500,
-      })
-    }
+# ─── Phase 1 (IKEv2) ───
+Remote Gateway:           ${getVpsPublicIp()}
+IKE Version:              IKEv2
+Authentication Method:    IKE using Preshared Secret
+Local IKE ID:             (deixar default — IP do firewall)
+Peer IKE ID:              198.18.0.1
+Pre-shared Secret:        ${psk}
+Encryption (Phase 1):     AES-256
+Hash (Phase 1):           SHA-256
+DH Group:                 DH 14 (modp2048)
+Lifetime:                 28800
 
-    const vpsPublicKey = getVpsPublicKey()
-    const vpsEndpoint = getVpsEndpoint()
-    const safeName = (tenant.name as string).replace(/[^a-zA-Z0-9_-]/g, '_')
-
-    const conf = [
-      `# WireGuard config para tenant ${tenant.name}`,
-      `# Gere a chave PRIVADA no próprio SonicWall (Generate New Key)`,
-      `# Cole esta config completando o campo PrivateKey`,
-      ``,
-      `[Interface]`,
-      `# PrivateKey = <gerada no SonicWall>`,
-      `Address = ${tenant.vpn_peer_ip}/32`,
-      ``,
-      `[Peer]`,
-      `PublicKey = ${vpsPublicKey}`,
-      `PresharedKey = ${psk}`,
-      `AllowedIPs = 198.18.0.1/32`,
-      `Endpoint = ${vpsEndpoint}`,
-      `PersistentKeepalive = 25`,
-    ].join('\n')
-
-    void reply.header('Content-Type', 'text/plain; charset=utf-8')
-    void reply.header(
-      'Content-Disposition',
-      `attachment; filename="vpn-${safeName}.conf"`,
-    )
-    return reply.code(200).send(conf)
+# ─── Phase 2 ───
+Local Network:            ${tenant.vpn_peer_ip}/32
+Remote Network:           198.18.0.1/32
+Encryption (Phase 2):     AES-256
+Hash (Phase 2):           SHA-256
+PFS:                      DH 14 (modp2048)
+Lifetime:                 3600
+`
+    reply
+      .header('Content-Type', 'text/plain; charset=utf-8')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="ipsec-${tenant.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.txt"`,
+      )
+      .send(conf)
   })
 }
 

@@ -231,22 +231,22 @@ export function deleteUser(id: string): Promise<void> {
   return request<void>(`/admin/users/${id}`, { method: 'DELETE' })
 }
 
-// ─── VPN WireGuard ──────────────────────────────────────
+// ─── VPN IPsec (strongSwan) ─────────────────────────────
 
 export interface VpnEnableResponse {
   vpn_peer_ip: string
-  endpoint: string
-  allowed_ips: string
-  persistent_keepalive: number
+  ike_proposals: string
   preshared_key: string
-  vps_public_key: string
+  vps_public_ip: string
+  vps_tunnel_ip: string
   lhm_mgmt_lan_url: string
-  vpn_status: 'pending'
+  vpn_status: 'awaiting_handshake' | 'pending'
 }
 
 export interface VpnStatusResponse {
   vpn_status: 'disabled' | 'pending' | 'awaiting_handshake' | 'connected' | 'disconnected' | 'error'
   vpn_peer_ip?: string
+  vpn_remote_id?: string | null
   endpoint_observed?: string
   last_handshake_seconds_ago?: number
   transfer_rx_bytes?: number
@@ -275,14 +275,21 @@ export function enableVpn(tenantId: string): Promise<VpnEnableResponse> {
   })
 }
 
-export function submitVpnPublicKey(
+/**
+ * Envia `remote_id` opcional (identificador IPsec do firewall) pra restringir
+ * a autenticação. Sem isso, qualquer remote_id é aceito desde que a PSK bata.
+ */
+export function submitVpnPeerConfig(
   tenantId: string,
-  publicKey: string,
-): Promise<{ vpn_status: string }> {
-  return request<{ vpn_status: string }>(`/admin/tenants/${tenantId}/vpn/peer-public-key`, {
-    method: 'POST',
-    body: JSON.stringify({ public_key: publicKey }),
-  })
+  remoteId?: string,
+): Promise<{ vpn_status: string; vpn_remote_id: string | null }> {
+  return request<{ vpn_status: string; vpn_remote_id: string | null }>(
+    `/admin/tenants/${tenantId}/vpn/peer-config`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ remote_id: remoteId ?? '' }),
+    },
+  )
 }
 
 export function getVpnStatus(tenantId: string): Promise<VpnStatusResponse> {
@@ -315,7 +322,7 @@ export async function downloadVpnConfig(tenantId: string): Promise<Blob> {
   if (!res.ok) {
     throw new ApiRequestError({
       error: 'download_failed',
-      message: 'Falha ao baixar configuração WireGuard.',
+      message: 'Falha ao baixar configuração IPsec.',
       code: res.status,
     })
   }
