@@ -242,9 +242,9 @@ function StateAwaitingHandshake({
         <p>✓ Saída UDP 500 e 4500 (NAT-T) liberada na zona WAN</p>
       </div>
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90">
-        <strong>Perdeu a PSK ou config?</strong> Clica em "Desabilitar VPN" lá embaixo e
-        depois "Habilitar VPN" de novo — uma nova PSK + config será gerada e mostrada
-        na tela.
+        <strong>Perdeu a PSK ou config?</strong> Clica em &quot;Desabilitar VPN&quot; lá
+        embaixo e depois &quot;Habilitar VPN&quot; de novo — uma nova PSK + config será
+        gerada e mostrada na tela.
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         {lastChecked && (
