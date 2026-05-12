@@ -217,9 +217,11 @@ function StatePending({
 
 function StateAwaitingHandshake({
   onRefresh,
+  onDisable,
   lastChecked,
 }: {
   onRefresh: () => void
+  onDisable?: () => void
   lastChecked: Date | null
 }) {
   return (
@@ -230,15 +232,21 @@ function StateAwaitingHandshake({
       />
       <div className="flex items-center gap-3 text-sm text-t-muted">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent shrink-0" />
-        <span>Public Key do SonicWall registrada. Aguardando primeira conexão.</span>
+        <span>VPN provisionada na VPS. Aguardando primeira conexão do SonicWall.</span>
       </div>
       <div className="rounded-lg border border-t-default bg-t-input p-4 space-y-2 text-xs text-t-label">
         <p className="font-medium text-t-secondary mb-2">Verifique no SonicOS que:</p>
-        <p>✓ O Tunnel-Interface IPsec está habilitado (Enable = ON)</p>
-        <p>✓ A regra de Access Rule WAN→Tunnel permite UDP 51820</p>
-        <p>✓ O cliente tem rota pra Internet (saída UDP)</p>
+        <p>✓ O Tunnel-Interface IPsec está configurado e habilitado (Enable = ON)</p>
+        <p>✓ Pré-Shared Secret bate com o que foi gerado aqui (re-habilite a VPN se perdeu)</p>
+        <p>✓ Remote Gateway = 45.7.53.80, Peer IKE ID = 198.18.0.1, IKEv2</p>
+        <p>✓ Saída UDP 500 e 4500 (NAT-T) liberada na zona WAN</p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90">
+        <strong>Perdeu a PSK ou config?</strong> Clica em "Desabilitar VPN" lá embaixo e
+        depois "Habilitar VPN" de novo — uma nova PSK + config será gerada e mostrada
+        na tela.
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
         {lastChecked && (
           <span className="text-xs text-t-placeholder">
             Última verificação: {lastChecked.toLocaleTimeString('pt-BR')}
@@ -251,6 +259,15 @@ function StateAwaitingHandshake({
         >
           🔄 Verificar agora
         </button>
+        {onDisable && (
+          <button
+            type="button"
+            onClick={onDisable}
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors ml-auto"
+          >
+            ↺ Desabilitar VPN (recomeçar)
+          </button>
+        )}
       </div>
     </div>
   )
@@ -814,6 +831,7 @@ export function VpnTab({ tenantId, tenantName = 'tenant' }: VpnTabProps) {
       {currentStatus === 'awaiting_handshake' && (
         <StateAwaitingHandshake
           onRefresh={handleManualRefresh}
+          onDisable={() => setConfirmDisable(true)}
           lastChecked={lastChecked}
         />
       )}
