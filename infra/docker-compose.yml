@@ -255,6 +255,8 @@ services:
       - "4500:4500/udp"    # NAT-T
     volumes:
       - strongswan_config:/etc/swanctl
+      # Compartilha o socket vici (/var/run/charon.vici) com o sidecar swan-api
+      - strongswan_run:/var/run
     networks:
       internal:
       external:
@@ -281,6 +283,8 @@ services:
       # Compartilha o conf.d com strongswan pra escrever os arquivos
       # de peer e o daemon reler via `swanctl --load-conns`.
       - strongswan_config:/etc/swanctl
+      # Acessa o socket vici do daemon charon (mesmo /var/run)
+      - strongswan_run:/var/run
 
 volumes:
   postgres_data:
@@ -288,6 +292,7 @@ volumes:
   certbot_certs:
   nginx_tenants_conf:
   strongswan_config:
+  strongswan_run:
 
 networks:
   internal:
