@@ -102,7 +102,7 @@ func writePeerConf(peerID, peerIP, psk, remoteID string) error {
 connections {
     %[1]s {
         version = 2
-        proposals = aes256-sha256-modp2048,aes128-sha256-modp2048,default
+        proposals = aes256-sha256-modp2048,aes128-sha256-modp2048,aes256-sha256-modp1024,aes128-sha256-modp1024,default
         local_addrs = %%any
         remote_addrs = %%any
         send_certreq = no
@@ -123,7 +123,7 @@ connections {
                 remote_ts = %[4]s/32
                 start_action = none
                 close_action = none
-                esp_proposals = aes256-sha256,aes128-sha256,default
+                esp_proposals = aes256-sha256,aes128-sha256,aes256-sha256-modp1024,aes128-sha256-modp1024,default
                 rekey_time = 1h
                 life_time = 8h
             }
