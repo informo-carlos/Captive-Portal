@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+# Cancela runs antigos do mesmo PR/branch quando um novo push chega.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: ${{ matrix.app }} (lint • typecheck • test)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - apps/backend
+          - apps/admin-backend
+          - apps/frontend
+          - apps/admin
+          - packages/shared
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck --if-present
+
+      - name: Build (tsc / next build)
+        run: npm run build --if-present
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+  docker:
+    name: docker build (Dockerfiles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # .env apenas para silenciar interpolação do compose no build (sem segredos reais).
+      - name: Prepare dummy .env
+        run: cp .env.example infra/.env || true
+
+      - name: Validate compose config
+        run: docker compose -f infra/docker-compose.yml config -q
+
+      # Valida os Dockerfiles dos serviços Node de backend (os Next são cobertos pelo job quality).
+      - name: Build backend images
+        run: docker compose -f infra/docker-compose.yml build admin-backend provisioner

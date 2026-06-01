@@ -75,6 +75,13 @@ coverage/
 .nyc_output/
 
 # ─────────────────────────────────────────
+# Claude Code
+# ─────────────────────────────────────────
+# Versionar settings.json, commands/, agents/, hooks/ (config de equipe).
+# Ignorar apenas preferências/segredos pessoais.
+.claude/settings.local.json
+
+# ─────────────────────────────────────────
 # Misc
 # ─────────────────────────────────────────
 .turbo/

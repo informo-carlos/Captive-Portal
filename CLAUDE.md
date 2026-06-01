@@ -13,6 +13,22 @@ Gerenciado via **painel admin web** — sem acesso a CLI para operações do dia
 
 ---
 
+## Escopo — o que é MVP e o que é Futuro
+
+> **O MVP é SonicWall (OTP + LHM).** Quando em dúvida sobre prioridade, foque aqui.
+
+**No MVP (caminho crítico):**
+- Portal SonicWall: OTP por SMS (Zenvia) + liberação via LHM (External Guest Auth).
+- Painel admin: CRUD de tenants, sessões, relatórios, audit log, roles.
+- Multi-tenancy por container isolado + `serial-guard`.
+
+**Futuro (código existe no repo, mas FORA do caminho crítico — não comece por aqui):**
+- **RADIUS / MAB / CoA** (`apps/backend/src/services/radius/`) — ver `docs/spec-radius-auth.md`, `docs/runbook-radius.md`.
+- **VPN IPsec / strongSwan** (`apps/swan-api/`, `apps/admin-backend/.../ipsec/`).
+- **Multi-vendor** (FortiGate/UniFi/Mikrotik) — ver `docs/planejamento-multi-vendor.md`.
+
+---
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -36,18 +52,22 @@ captive-portal/
 │   ├── backend/          # Portal captivo — Fastify
 │   ├── admin-backend/    # API do painel admin — Fastify
 │   ├── frontend/         # Portal captivo UI — Next.js
-│   └── admin/            # Painel admin UI — Next.js
+│   ├── admin/            # Painel admin UI — Next.js
+│   ├── provisioner/      # Sidecar TS — cria containers de tenant + config nginx
+│   └── swan-api/         # Sidecar Go — gerencia peers IPsec via swanctl (futuro/VPN)
 ├── packages/
 │   └── shared/           # Tipos TypeScript compartilhados entre os apps
 ├── infra/
 │   ├── docker-compose.yml
+│   ├── deploy.sh         # Deploy padronizado no VPS (use via /deploy)
 │   ├── nginx/nginx.conf
 │   └── postgres/migrations/
+├── .claude/              # Setup de equipe: commands/, agents/, hooks/, settings.json
 └── docs/
-    ├── spec-auth-api.md   # ← LEIA ANTES de tocar no portal backend
-    ├── spec-admin-api.md  # ← LEIA ANTES de tocar no admin backend
-    ├── TASKS.md           # Tasks da semana 1
-    └── estrutura-pastas.md
+    ├── spec-auth-api.md     # ← LEIA ANTES de tocar no portal backend
+    ├── spec-admin-api.md    # ← LEIA ANTES de tocar no admin backend
+    ├── workflow-claude.md   # ← O protocolo de trabalho (siga SEMPRE)
+    └── TASKS.md             # Tasks do MVP
 ```
 
 ---
@@ -195,6 +215,14 @@ Antes de implementar qualquer coisa nova que não está nas specs:
 3. Referenciar o doc no PR
 
 Isso garante que o outro dev (e o Claude) saibam exatamente o que está sendo construído.
+
+---
+
+## Protocolo de trabalho — leia antes de qualquer task
+
+O fluxo completo (plan mode → slash commands → validação → PR → deploy) está em
+**[docs/workflow-claude.md](docs/workflow-claude.md)**. Resumo: ENTENDER → PLANEJAR →
+RAMIFICAR → IMPLEMENTAR → VALIDAR → PR → DEPLOY. Sem exceção.
 
 ---
 

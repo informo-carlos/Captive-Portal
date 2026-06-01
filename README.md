@@ -108,18 +108,21 @@ captive-portal/
 │   ├── backend/          # Portal captivo (Fastify)
 │   ├── admin-backend/    # API do painel admin (Fastify)
 │   ├── frontend/         # Portal captivo UI (Next.js)
-│   └── admin/            # Painel admin UI (Next.js)
+│   ├── admin/            # Painel admin UI (Next.js)
+│   ├── provisioner/      # Sidecar — cria containers de tenant + config nginx
+│   └── swan-api/         # Sidecar Go — peers IPsec (futuro/VPN)
 ├── packages/
 │   └── shared/           # Tipos TypeScript compartilhados
 ├── infra/
 │   ├── docker-compose.yml
+│   ├── deploy.sh         # Deploy padronizado no VPS
 │   ├── nginx/
 │   └── postgres/migrations/
 └── docs/
-    ├── spec-auth-api.md   # Contrato da API do portal
-    ├── spec-admin-api.md  # Contrato da API do admin
-    ├── TASKS.md           # Tasks da semana 1
-    └── estrutura-pastas.md
+    ├── spec-auth-api.md     # Contrato da API do portal
+    ├── spec-admin-api.md    # Contrato da API do admin
+    ├── workflow-claude.md   # Protocolo de trabalho (siga sempre)
+    └── TASKS.md             # Escopo MVP + pendências
 ```
 
 ---
